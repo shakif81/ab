@@ -1,1657 +1,1584 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#1f6feb">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1a365d">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cofres">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="TRAXX">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Montaje de cofres · Control AOS</title>
+<style>
+  :root{
+    color-scheme: light dark;
+    --bg:#eef1f6; --card:#ffffff; --text:#111a24; --muted:#5a6b80;
+    --border:#d7dfe9; --primary:#1f6feb; --on-primary:#ffffff;
+    --ok:#0b7a43; --ok-bg:#e3f7ec; --warn:#b45309; --warn-bg:#fef3c7;
+    --bad:#c62828; --bad-bg:#fdeaea;
+    --shadow:0 1px 2px rgba(16,24,40,.06), 0 4px 14px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d1218; --card:#151c25; --text:#e8eef6; --muted:#9aacbf;
+      --border:#27323f; --primary:#3b82f6;
+      --ok:#4ade80; --ok-bg:#0d2b1c; --warn:#fbbf24; --warn-bg:#3b2a0c;
+      --bad:#ff7b72; --bad-bg:#2e1517;
+      --shadow:0 1px 2px rgba(0,0,0,.5);
+    }
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; padding:12px 12px calc(48px + env(safe-area-inset-bottom));
+    background:var(--bg); color:var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size:16px; line-height:1.45;
+  }
+  .app{ max-width:1000px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  .head h1{ font-size:1.3rem; margin:0; letter-spacing:-.01em; }
+  .head .sub{ margin:2px 0 0; color:var(--muted); font-size:.88rem; }
+  .card{
+    background:var(--card); border:1px solid var(--border);
+    border-radius:16px; padding:14px; box-shadow:var(--shadow);
+  }
+  .card h2{ font-size:1.02rem; margin:0 0 12px; letter-spacing:-.01em; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(148px, 1fr)); gap:10px; }
+  label.field{
+    display:flex; flex-direction:column; gap:5px;
+    font-size:.76rem; font-weight:700; letter-spacing:.03em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  input[type="text"], input[type="number"], input[type="file"], input[type="time"]{
+    font:inherit; font-size:1rem; font-weight:500;
+    padding:11px 12px; border-radius:11px;
+    border:1px solid var(--border);
+    background:var(--card); color:var(--text);
+    width:100%; -webkit-appearance:none; appearance:none;
+  }
+  input[type="file"]{ padding:8px; font-size:.9rem; }
+  input:focus-visible, button:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; }
+  .hint{ margin:10px 0 0; font-size:.82rem; color:var(--muted); }
+  .alert{
+    padding:11px 13px; border-radius:11px; font-weight:700; font-size:.9rem;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    margin:12px 0 0;
+  }
+  .alert.ok{ background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
+  .alert.bad{ background:var(--bad-bg); color:var(--bad); border-color:var(--bad); }
+  .alert.warn{ background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  .alert:empty{ display:none; }
 
-  
-  
-  <title>Linea TRAXX - Sistema de Operaciones</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="css/01-base.css?v=2">
-<link rel="stylesheet" href="css/02-estructura.css?v=2">
-<link rel="stylesheet" href="css/03-login.css?v=2">
-<link rel="stylesheet" href="css/04-componentes.css?v=2">
-<link rel="stylesheet" href="css/05-chat-crono-overlay.css?v=2">
-<link rel="stylesheet" href="css/06-animaciones.css?v=2">
-<link rel="stylesheet" href="css/07-estaciones-responsive.css?v=2">
+  /* ---- Banner de alarma (fixed arriba) ---- */
+  .alarm-banner{
+    position:fixed; top:0; left:0; right:0;
+    padding:14px 16px;
+    background:var(--bad); color:#fff;
+    z-index:9999;
+    display:flex; align-items:center; gap:12px;
+    box-shadow:0 4px 20px rgba(0,0,0,.35);
+    animation:alarmPulse 1s infinite;
+  }
+  .alarm-banner[hidden]{ display:none; }
+  @keyframes alarmPulse{
+    0%,100%{ background:var(--bad); }
+    50%{ background:#e53935; }
+  }
+  .alarm-icon{
+    font-size:1.6rem; display:inline-block;
+    animation:shake .4s infinite;
+  }
+  @keyframes shake{
+    0%,100%{ transform:rotate(-12deg); }
+    50%{ transform:rotate(12deg); }
+  }
+  .alarm-text{
+    flex:1; font-weight:800; font-size:.92rem;
+    overflow-wrap:anywhere; line-height:1.3;
+  }
+  .alarm-btn{
+    background:#fff; color:var(--bad);
+    border:none; padding:11px 16px; border-radius:10px;
+    font:inherit; font-weight:800; font-size:.9rem;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+    flex-shrink:0;
+  }
+  .alarm-btn:active{ transform:scale(.97); }
+
+  .view[hidden]{ display:none; }
+
+  .main-nav{ display:flex; gap:8px; }
+  .main-btn{
+    flex:1; padding:14px 12px;
+    border:1px solid var(--border); background:var(--card); color:var(--text);
+    border-radius:14px; font:inherit; font-weight:800; font-size:1rem;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+    transition:background .15s, color .15s, box-shadow .15s;
+  }
+  .main-btn.active{
+    background:var(--primary); color:var(--on-primary); border-color:var(--primary);
+    box-shadow:0 4px 14px rgba(31,111,235,.2);
+  }
+
+  .objetivo-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .objetivo-row .field{ flex:0 0 auto; min-width:120px; }
+  .objetivo-row .field input{ width:110px; }
+  .prog-wrap{ flex:1 1 200px; min-width:140px; }
+  .prog-label{
+    display:flex; justify-content:space-between; gap:10px;
+    font-size:.78rem; font-weight:700; color:var(--muted);
+    margin-bottom:5px; font-variant-numeric:tabular-nums;
+  }
+  .prog-label b{ color:var(--text); }
+  .prog{ height:9px; background:var(--bg); border-radius:999px; overflow:hidden; border:1px solid var(--border); }
+  .prog > div{ height:100%; background:var(--primary); transition:width .35s ease; }
+  .prog.over > div{ background:var(--bad); }
+
+  .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tab{
+    flex:1 1 0; min-width:96px; padding:13px 8px;
+    border-radius:13px; border:1px solid var(--border);
+    background:var(--card); color:var(--text);
+    font:inherit; font-weight:800; font-size:.92rem; cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    transition:background .12s, color .12s; position:relative;
+  }
+  .tab.active{ background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+  .tab .dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--warn); margin-left:6px; vertical-align:middle;
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; }
+  .stat{ background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px 12px; min-width:0; }
+  .stat .k{ display:block; font-size:.68rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+  .stat .v{ display:block; font-size:1.05rem; font-weight:800; margin-top:3px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .stat .v-sub{ display:block; font-size:.78rem; color:var(--muted); font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .stat.ahorro{ border-color:var(--ok); background:var(--ok-bg); }
+  .stat.ahorro .v{ color:var(--ok); }
+  .stat.excedido{ border-color:var(--bad); background:var(--bad-bg); }
+  .stat.excedido .v{ color:var(--bad); }
+  .stat.quedan{ border-color:var(--primary); background:var(--card); }
+  .stat.quedan .v{ color:var(--primary); }
+
+  .lista{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .lista > li.muted{ color:var(--muted); font-size:.9rem; padding:6px 2px; }
+  .montaje{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    padding:11px 12px; border:1px solid var(--border); border-radius:13px;
+    background:var(--bg); transition:border-color .15s, background .15s;
+  }
+  .montaje.curso{ border-color:var(--warn); background:var(--warn-bg); box-shadow:0 0 0 1px var(--warn) inset; }
+  .montaje.hecho{ opacity:.62; }
+  .montaje.hecho .m-nombre{ text-decoration:line-through; }
+  .montaje.pausado{ border-color:var(--warn); }
+  .montaje.over{ border-color:var(--bad); background:var(--bad-bg); }
+  .montaje.over .m-crono{ color:var(--bad); }
+  .montaje.editing{ border-color:var(--primary); background:var(--card); }
+
+  .btn-play{
+    width:50px; height:50px; border-radius:50%; border:none;
+    background:var(--primary); color:#fff; font-size:1.35rem; cursor:pointer;
+    flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    -webkit-tap-highlight-color:transparent; padding:0; line-height:1;
+  }
+  .btn-play.pause{ background:var(--warn); }
+  .btn-play.reopen{ background:var(--muted); font-size:1.1rem; }
+  .btn-play:active{ transform:scale(.96); }
+
+  .m-main{ flex:1 1 0; min-width:0; }
+  .m-row1{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .m-nombre{ flex:1 1 0; min-width:0; font-weight:800; overflow-wrap:anywhere; }
+  .m-crono{
+    flex-shrink:0; font-variant-numeric:tabular-nums; font-weight:800;
+    font-size:1.1rem; letter-spacing:.02em; color:var(--muted);
+  }
+  .montaje.curso .m-crono, .montaje.pausado .m-crono{ color:var(--warn); }
+  .montaje.hecho .m-crono{ color:var(--text); }
+  .m-horas{ font-size:.8rem; color:var(--muted); font-weight:600; margin-top:2px; }
+  .m-fechas{
+    font-size:.8rem; color:var(--muted); font-weight:600;
+    margin-top:2px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere;
+  }
+  .m-fechas b{ color:var(--text); font-weight:800; }
+  .m-fechas .warn-text{ color:var(--warn); font-weight:800; }
+  .m-fechas .bad-text{ color:var(--bad); font-weight:800; }
+
+  .badge-estado{
+    display:inline-block; font-size:.68rem; font-weight:800;
+    padding:1px 7px; border-radius:999px;
+    background:var(--bg); color:var(--muted); border:1px solid var(--border);
+    margin-left:4px; vertical-align:middle;
+  }
+  .badge-estado.curso, .badge-estado.pausado{ background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  .badge-estado.hecho{ background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
+
+  .badge-over{
+    display:inline-block; background:var(--bad); color:#fff;
+    padding:1px 7px; border-radius:999px; font-size:.68rem; font-weight:800;
+    margin-left:4px; vertical-align:middle;
+  }
+  .badge-alerta{
+    display:inline-block; background:var(--warn); color:#fff;
+    padding:1px 7px; border-radius:999px; font-size:.68rem; font-weight:800;
+    margin-left:4px; vertical-align:middle;
+    animation: pulse 1.2s infinite;
+  }
+
+  .m-acciones{ display:flex; gap:6px; flex-shrink:0; }
+  .btn-mini{
+    font:inherit; font-size:.82rem; font-weight:800;
+    padding:9px 11px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .btn-mini.danger{ color:var(--bad); border-color:var(--bad); }
+
+  .add-form{ display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  #add-nombre{ flex:2 1 165px; }
+  #add-horas{ flex:1 1 110px; }
+  .add-form button{ flex:1 1 100%; }
+  .btn-primary{
+    font:inherit; font-size:1rem; font-weight:800;
+    padding:13px 18px; border-radius:12px; border:none;
+    background:var(--primary); color:var(--on-primary); cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .btn-primary:active{ transform:scale(.995); }
+
+  .data-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .data-actions .btn-mini{ flex:1 1 140px; padding:12px 14px; font-size:.88rem; }
+
+  .admin-edit-inputs{ display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:0; }
+  .admin-edit-inputs input{ padding:8px 10px; font-size:.92rem; border-radius:8px; }
+
+  .res-row{
+    display:flex; justify-content:space-between; gap:12px; padding:9px 0;
+    border-bottom:1px dashed var(--border); font-variant-numeric:tabular-nums; align-items:center;
+  }
+  .res-row:last-child{ border-bottom:none; }
+  .res-row.total{ font-weight:800; border-bottom:2px solid var(--border); }
+  .res-row.bad{ color:var(--bad); font-weight:800; }
+  .res-row .r-name{ font-weight:700; }
+  .res-row .r-vals{ text-align:right; }
+  .res-row .r-vals small{ display:block; color:var(--muted); font-weight:600; font-size:.74rem; }
+
+  .res-grid{
+    display:grid;
+    grid-template-columns:1.2fr 1fr 1fr 1fr 1.1fr;
+    gap:8px;
+    font-size:.82rem;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px dashed var(--border);
+    font-variant-numeric:tabular-nums;
+  }
+  .res-grid:last-child{ border-bottom:none; }
+  .res-grid.head{
+    font-size:.66rem; font-weight:800; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--muted);
+    border-bottom:1px solid var(--border);
+  }
+  .res-grid.total{
+    border-top:2px solid var(--border);
+    font-weight:800;
+    border-bottom:none;
+  }
+  .res-grid .rg-name{ font-weight:800; overflow-wrap:anywhere; }
+  .res-grid .rg-right{ text-align:right; }
+  .res-grid .rg-mono{ font-variant-numeric:tabular-nums; text-align:right; }
+
+  .alarma-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .alarma-row .btn-mini{ flex:1 1 140px; padding:12px 14px; font-size:.88rem; }
+
+  @media (max-width:600px){
+    .res-grid{ grid-template-columns:1.2fr 1fr 1fr; font-size:.78rem; }
+    .res-grid > .rg-col-hide-sm{ display:none; }
+  }
+  @media (max-width:480px){
+    body{ padding:10px 10px calc(40px + env(safe-area-inset-bottom)); }
+    .card{ padding:12px; border-radius:14px; }
+    .head h1{ font-size:1.15rem; }
+    .btn-play{ width:44px; height:44px; font-size:1.15rem; }
+    .m-crono{ font-size:1rem; }
+    .montaje{ gap:8px; }
+    .m-acciones .btn-mini{ padding:7px 9px; font-size:.74rem; }
+    .alarm-banner{ padding:11px 12px; gap:8px; }
+    .alarm-icon{ font-size:1.3rem; }
+    .alarm-text{ font-size:.82rem; }
+    .alarm-btn{ padding:9px 12px; font-size:.82rem; }
+  }
+</style>
 </head>
-
 <body>
 
-<div id="loginModal">
-    <div class="login-box">
-        <div class="logo-emoji">🚄</div>
-        <h2>Linea TRAXX</h2>
-        <p class="subtitle">Montaje de Convertidores</p>
-
-        <div id="listaOperariosLogin" class="login-list">
-            <div style="color:var(--gray-600);font-size:0.8rem;">⏳ Cargando...</div>
-        </div>
-
-        <div id="pinSection" style="display:none;">
-            <div id="operarioSeleccionadoNombre" style="font-weight:700;font-size:0.9rem;margin-bottom:6px;"></div>
-            <div style="display:flex;gap:6px;margin-bottom:10px;">
-                <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="● ● ● ●" class="pin-input" onkeydown="if(event.key==='Enter')confirmarLogin()">
-                <button class="btn-login-ok" onclick="confirmarLogin()">&#10003;</button>
-            </div>
-            <button class="btn-link" onclick="volverSeleccionOperario()">&#8592; Cambiar</button>
-            <div id="pinError" style="color:var(--danger);font-size:0.75rem;margin-top:5px;display:none;">&#10060; PIN incorrecto</div>
-        </div>
-
-        <button class="btn-link" onclick="accederSinOperario()" style="margin-top:6px;">Entrar como visitante</button>
-    </div>
+<!-- Banner de alarma (fixed) -->
+<div id="alarm-banner" class="alarm-banner" hidden role="alert" aria-live="assertive">
+  <span class="alarm-icon">🔔</span>
+  <span class="alarm-text" id="alarm-text">Alarma</span>
+  <button type="button" id="alarm-stop" class="alarm-btn">Silenciar</button>
 </div>
 
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="app">
 
-<div class="app-container" id="appContainer" style="display:none;">
+  <header class="head">
+    <h1>Montaje de cofres · Control AOS</h1>
+    <p class="sub">Admin para configurar · Operario para cronometrar</p>
+  </header>
 
-    <header class="header">
-        <button class="menu-toggle" id="menuToggle">☰</button>
-        <div class="header-title"><h1>Linea TRAXX</h1></div>
-        <div class="header-actions">
-            <div class="user-profile">
-                <div class="user-avatar" id="userAvatar">OP</div>
-                <div>
-                    <div class="user-name" id="userName">Operario</div>
-                    <div class="user-role" id="userRole">Taller TRAXX</div>
-                </div>
-            </div>
+  <nav class="main-nav" id="main-nav">
+    <button type="button" class="main-btn" data-view="admin">⚙ Admin</button>
+    <button type="button" class="main-btn" data-view="operario">⏱ Operario</button>
+  </nav>
+
+  <!-- ================= ADMIN ================= -->
+  <div id="view-admin" class="view" hidden>
+
+    <section class="card">
+      <h2>Objetivo total</h2>
+      <div class="objetivo-row">
+        <label class="field">Objetivo (h)
+          <input type="text" id="objetivo" inputmode="decimal" autocomplete="off">
+        </label>
+        <div class="prog-wrap">
+          <div class="prog-label">
+            <span>Estimado: <b id="prog-est">0 h</b></span>
+            <span id="prog-pct">0%</span>
+          </div>
+          <div class="prog" id="prog-bar"><div style="width:0%"></div></div>
         </div>
-    </header>
+      </div>
+      <div id="objetivo-alert"></div>
+    </section>
 
-    <nav class="sidebar" id="sidebar" style="display:none;">
-        <div class="logo">
-            <h2><div class="logo-icon">🚄</div>TRAXX</h2>
-        </div>
-        <div class="nav-menu">
-            <button class="nav-item" data-page="dashboard"><i class="fas fa-tachometer-alt nav-icon"></i>Dashboard</button>
-            <button class="nav-item active" data-page="operaciones"><i class="fas fa-clipboard-list nav-icon"></i>Operaciones</button>
-            <button class="nav-item" data-page="estaciones"><i class="fas fa-industry nav-icon"></i>Estaciones</button>
-            <button class="nav-item" data-page="kanban"><i class="fas fa-box-open nav-icon"></i>Kanban</button>
-          <button class="nav-item" data-page="materiales">
-    <i class="fas fa-flask nav-icon"></i>Materiales
-    <span class="nav-badge" id="badgeMateriales">0</span>
-</button>
-<button class="nav-item" data-page="verificar-materiales">
-    <i class="fas fa-qrcode nav-icon"></i>Verificar Materiales
-</button>
-            <button class="nav-item" data-page="herramientas"><i class="fas fa-tools nav-icon"></i>Herramientas</button>
+    <section class="card">
+      <h2>Jornada laboral</h2>
+      <div class="grid">
+        <label class="field">Inicio jornada
+          <input type="time" id="jornada-inicio">
+        </label>
+        <label class="field">Fin jornada
+          <input type="time" id="jornada-fin">
+        </label>
+      </div>
+      <p class="hint">Se usa para calcular cuándo terminarán los montajes pendientes, saltando noches y fines de semana.</p>
+    </section>
 
-            <button class="nav-item" data-page="chat">
-                <i class="fas fa-comments nav-icon"></i>Chat
-                <span class="nav-badge" id="badgeChat">0</span>
-            </button>
-            <button class="nav-item" data-page="notificaciones">
-                <i class="fas fa-bell nav-icon"></i>Notificaciones
-                <span class="nav-badge" id="badgeNotif">0</span>
-            </button>
-            <button class="nav-item nav-separator" onclick="cerrarSesion()">
-                <i class="fas fa-sign-out-alt nav-icon"></i>Cerrar Sesión
-            </button>
-        </div>
+    <section class="card">
+      <h2>Alarma de fin de montaje</h2>
+      <label class="check" style="margin-top:0">
+        <input type="checkbox" id="alarma-activa">
+        <span>Activar alarma</span>
+      </label>
+      <div class="grid" style="margin-top:12px">
+        <label class="field">Avisar X min antes
+          <input type="text" id="alarma-minutos" inputmode="numeric" placeholder="2">
+        </label>
+        <label class="field">Duración (segundos)
+          <input type="text" id="alarma-duracion" inputmode="numeric" placeholder="30">
+        </label>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="alarma-vibracion">
+        <span>Vibrar al mismo tiempo</span>
+      </label>
+      <p class="hint">Cuando a un montaje en curso le queden los minutos indicados para llegar a su estimado, sonará una alarma continua durante N segundos (con vibración). Pulsa "Silenciar" en el banner rojo para pararla antes. La vibración no funciona en iOS; el sonido sí.</p>
+      <div class="alarma-row">
+        <button type="button" class="btn-mini" id="btn-test-alarma">🔔 Probar alarma</button>
+        <button type="button" class="btn-mini danger" id="btn-stop-alarma">🔇 Silenciar</button>
+      </div>
+    </section>
+
+    <nav class="tabs" id="tabs-admin">
+      <button type="button" class="tab" data-role="o1">Operario 1</button>
+      <button type="button" class="tab" data-role="o2">Operario 2</button>
+      <button type="button" class="tab" data-role="supervisor">Supervisor (TQC)</button>
     </nav>
 
-    <nav class="sidebar admin" id="sidebarAdmin" style="display:none;">
-        <div class="logo">
-            <h2><div class="logo-icon">⚙️</div>Admin Panel</h2>
-        </div>
-        <div class="nav-menu">
-            <button class="nav-item active" data-admin-tab="operarios"><i class="fas fa-users nav-icon"></i>Operarios</button>
-            <button class="nav-item" data-admin-tab="estaciones"><i class="fas fa-industry nav-icon"></i>Estaciones</button>
-            <button class="nav-item" data-admin-tab="operaciones"><i class="fas fa-clipboard-list nav-icon"></i>Operaciones</button>
-            <button class="nav-item" data-admin-tab="kanban"><i class="fas fa-box-open nav-icon"></i>Kanban</button>
-<button class="nav-item" data-admin-tab="movimientosKanban">
-    <i class="fas fa-exchange-alt nav-icon"></i>Mov. Kanban
-    <span class="nav-badge" id="badgeKanbanSidebar">0</span>
-</button>
-            <button class="nav-item" data-admin-tab="tornilleria"><i class="fas fa-cog nav-icon"></i>Tornillería</button>
-            <button class="nav-item" data-admin-tab="materiales"><i class="fas fa-flask nav-icon"></i>Materiales</button>
-            <button class="nav-item" data-admin-tab="entregarMateriales"><i class="fas fa-box nav-icon"></i>Entregar Materiales</button>
-            <button class="nav-item" data-admin-tab="registros"><i class="fas fa-database nav-icon"></i>Registros materiales</button>
-            <button class="nav-item" data-admin-tab="herramientas"><i class="fas fa-tools nav-icon"></i>Herramientas</button>
-            <button class="nav-item" data-admin-tab="registroHerramientas"><i class="fas fa-history nav-icon"></i>Registro Herramientas</button>
+    <section class="card">
+      <h2 id="admin-role-title">Operario 1</h2>
+      <ul class="lista" id="admin-list"></ul>
+      <form class="add-form" id="form-add" autocomplete="off">
+        <input type="text" id="add-nombre" placeholder="Nombre del montaje" maxlength="80">
+        <input type="text" id="add-horas" inputmode="decimal" placeholder="Horas est. (0,56)">
+        <button type="submit" class="btn-primary">+ Añadir montaje</button>
+      </form>
+    </section>
 
-            <button class="nav-item" data-admin-tab="montajes"><i class="fas fa-puzzle-piece nav-icon"></i>Montajes</button>
-            <button class="nav-item" data-admin-tab="registroVerificaciones"><i class="fas fa-clipboard-check nav-icon"></i>Registro Verif. Montajes</button>
+    <section class="card">
+      <h2>Resumen global</h2>
+      <div id="resumen"></div>
+    </section>
 
-<button class="nav-item" data-admin-tab="tqc">
-    <i class="fas fa-search nav-icon"></i>Control Calidad
-    <span class="nav-badge" id="badgeTQCSidebar">0</span>
-</button>
+    <section class="card">
+      <h2>Copia de seguridad</h2>
+      <p class="hint" style="margin-top:0">
+        Los datos se guardan solo en este navegador de este dispositivo. Exporta una copia al terminar la jornada y guárdala en Drive o donde quieras.
+      </p>
+      <div class="data-actions" style="margin-top:12px">
+        <button type="button" class="btn-mini" id="btn-export">⬇ Exportar copia</button>
+        <button type="button" class="btn-mini" id="btn-import-trigger">⬆ Importar copia</button>
+      </div>
+      <input type="file" id="file-import" accept="application/json,.json" style="display:none">
+      <div id="data-alert"></div>
+    </section>
 
-            <button class="nav-item" data-admin-tab="inspeccion"><i class="fas fa-search nav-icon"></i>Inspección</button>
+  </div>
 
-            <button class="nav-item" data-admin-tab="configEscaner"><i class="fas fa-sliders-h nav-icon"></i>Config. Escáner</button>
+  <!-- ================= OPERARIO ================= -->
+  <div id="view-operario" class="view" hidden>
 
-            <button class="nav-item nav-separator" onclick="cerrarSesion()">
-                <i class="fas fa-sign-out-alt nav-icon"></i>Cerrar Sesión
-            </button>
-        </div>
+    <nav class="tabs" id="tabs-operario">
+      <button type="button" class="tab" data-role="o1">Operario 1</button>
+      <button type="button" class="tab" data-role="o2">Operario 2</button>
+      <button type="button" class="tab" data-role="supervisor">Supervisor (TQC)</button>
     </nav>
 
-    <main class="main-content" id="mainContent">
+    <section class="card">
+      <h2 id="op-role-title">Operario 1</h2>
+      <div class="stats" id="op-role-stats"></div>
+    </section>
 
-        <div class="page-section active" id="operaciones">
-            <div class="content-header">
-                <div>
-                    <h1 class="page-title">Operaciones</h1>
-                    <p class="page-subtitle">Selecciona una operación para ver sus montajes</p>
-                </div>
-            </div>
-            <div class="operaciones-grid" id="operacionesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;">
-                <div class="empty-state">⏳ Cargando...</div>
-            </div>
+    <section class="card">
+      <div class="stats">
+        <div class="stat">
+          <span class="k">Primer montaje iniciado</span>
+          <span class="v" id="op-primer-inicio">—</span>
+          <span class="v-sub" id="op-primer-inicio-sub"></span>
         </div>
-
-        <div class="page-section" id="montajes-operacion">
-            <div class="content-header">
-                <button class="btn btn-outline" onclick="volverAOperaciones()">← Volver</button>
-                <div>
-                    <h1 class="page-title" id="montajesTitulo">Operación</h1>
-                    <p class="page-subtitle" id="montajesSubtitulo"></p>
-                </div>
-            </div>
-            <div id="operacionInfoBar" style="display:none;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;padding:0.8rem 1.2rem;border-radius:12px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;font-size:0.85rem;">
-                <span>🔢 <strong id="infoOpNumero">-</strong></span>
-                <span>📦 <strong id="infoOpModelo">-</strong></span>
-                <span>📋 <strong id="infoOpMontajes">0</strong> montajes</span>
-                <span>⏱️ <strong id="infoOpTiempo">0.00h</strong></span>
-            </div>
-            <div id="montajesList">
-                <div class="empty-state">Selecciona una operación</div>
-            </div>
+        <div class="stat">
+          <span class="k">Trabajo real</span>
+          <span class="v" id="op-trabajo-real">—</span>
+          <span class="v-sub" id="op-trabajo-real-sub"></span>
         </div>
-
-        <div class="page-section" id="estaciones">
-            <div class="content-header">
-                <div>
-                    <h1 class="page-title">Estaciones</h1>
-                    <p class="page-subtitle">Todas las estaciones de trabajo</p>
-                </div>
-            </div>
-            <div style="margin-bottom:1rem;">
-                <select id="filtroModeloEstaciones" style="width:100%;max-width:280px;padding:8px;border-radius:8px;border:1px solid var(--gray-300);">
-                    <option value="todos">Todos los modelos</option>
-                    <option value="MS3">🔷 MS3</option>
-                    <option value="DC3">🔶 DC3</option>
-                </select>
-            </div>
-            <div id="estacionesGrid"></div>
+        <div class="stat ahorro" id="op-ahorro-box" hidden>
+          <span class="k">Ahorro</span>
+          <span class="v" id="op-ahorro">—</span>
+          <span class="v-sub" id="op-ahorro-sub"></span>
         </div>
-
-        <div class="page-section" id="dashboard">
-            <div class="content-header">
-                <div>
-                    <h1 class="page-title">Dashboard</h1>
-                    <p class="page-subtitle">Resumen de producción</p>
-                </div>
-            </div>
-
-            <div style="display:flex;gap:10px;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;background:white;padding:12px 16px;border-radius:12px;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:1rem;">📅</span>
-                    <select id="dashFiltroFecha" onchange="actualizarDashboard()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                        <option value="hoy">Hoy</option>
-                        <option value="semana">Últimos 7 días</option>
-                        <option value="mes">Últimos 30 días</option>
-                        <option value="todo" selected>Todo</option>
-                    </select>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:1rem;">👤</span>
-                    <select id="dashFiltroOperario" onchange="actualizarDashboard()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                        <option value="todos">Todos los operarios</option>
-                    </select>
-                </div>
-                <div style="margin-left:auto;">
-                    <span id="dashFiltrosInfo" style="font-size:0.75rem;color:#64748b;font-weight:600;">Mostrando: todo</span>
-                </div>
-            </div>
-
-            <div class="stats-grid">
-                <div class="stat-card success"><i class="fas fa-check-circle"></i><div class="stat-value" id="dashMontajesHoy">0</div><div class="stat-label">Montajes completados</div></div>
-                <div class="stat-card info"><i class="fas fa-clock"></i><div class="stat-value" id="dashTiempoTotal">0.00h</div><div class="stat-label">Tiempo total</div></div>
-                <div class="stat-card warning"><i class="fas fa-hourglass-half"></i><div class="stat-value" id="dashPendientes">0</div><div class="stat-label">Pendientes</div></div>
-                <div class="stat-card info"><i class="fas fa-user-clock"></i><div class="stat-value" id="dashTiempoRestante">0.00h</div><div class="stat-label">Tiempo restante</div></div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr;gap:1rem;margin-top:1.5rem;">
-                <div class="panel" style="border-left:4px solid #10b981;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                        <h3 style="margin:0;display:flex;align-items:center;gap:8px;color:#047857;">
-                            <span style="font-size:1.1rem;">📜</span>
-                            <span>Últimos montajes completados</span>
-                        </h3>
-                        <span id="dashHistorialCount" style="background:#ecfdf5;color:#047857;padding:3px 10px;border-radius:99px;font-size:0.7rem;font-weight:700;">0</span>
-                    </div>
-                    <div id="dashHistorialList" style="display:flex;flex-direction:column;gap:6px;">
-                        <div style="text-align:center;padding:1.5rem;color:#94a3b8;font-size:0.85rem;">Sin montajes completados todavía</div>
-                    </div>
-                </div>
-
-                <div class="panel" style="border-left:4px solid #6366f1;">
-                    <h3 style="margin:0 0 12px 0;display:flex;align-items:center;gap:8px;color:#4338ca;">
-                        <span style="font-size:1.1rem;">📊</span>
-                        <span>Estadísticas del día</span>
-                    </h3>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
-                        <div style="background:linear-gradient(135deg,#eef2ff,white);border:1px solid #c7d2fe;border-radius:12px;padding:14px;text-align:center;">
-                            <div style="font-size:1.3rem;margin-bottom:4px;">✅</div>
-                            <div id="dashStatHoy" style="font-size:1.6rem;font-weight:800;color:#4338ca;line-height:1;">0</div>
-                            <div style="font-size:0.7rem;color:#4338ca;font-weight:600;margin-top:4px;opacity:0.8;">Montajes hoy</div>
-                        </div>
-                        <div style="background:linear-gradient(135deg,#ecfdf5,white);border:1px solid #a7f3d0;border-radius:12px;padding:14px;text-align:center;">
-                            <div style="font-size:1.3rem;margin-bottom:4px;">⏱️</div>
-                            <div id="dashStatTiempoMedio" style="font-size:1.6rem;font-weight:800;color:#047857;line-height:1;">0.00h</div>
-                            <div style="font-size:0.7rem;color:#047857;font-weight:600;margin-top:4px;opacity:0.8;">Tiempo medio</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="stat quedan">
+          <span class="k">Quedan de montajes</span>
+          <span class="v" id="op-quedan-tiempo">—</span>
+          <span class="v-sub" id="op-quedan-fecha"></span>
         </div>
+      </div>
+    </section>
 
-<div class="page-section" id="herramientas">
-    <div class="content-header">
-        <div>
-            <h1 class="page-title">🔧 Herramientas</h1>
-            <p class="page-subtitle">Reserva y gestión de herramientas del taller</p>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="cargarHerramientasOperario()" id="btnRefrescarHerramientas">
-            🔄 Refrescar
-        </button>
-    </div>
-    <div id="herramientasContainer">
-        <div class="empty-state">⏳ Cargando...</div>
-    </div>
+    <section class="card">
+      <h2>Montajes</h2>
+      <div id="op-role-alert"></div>
+      <ul class="lista" id="op-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Resumen por operario</h2>
+      <div id="op-resumen-global"></div>
+    </section>
+
+  </div>
+
 </div>
 
-        <div class="page-section" id="kanban">
-            <div class="content-header">
-                <div>
-                    <h1 class="page-title">Kanban</h1>
-                    <p class="page-subtitle">Control de piezas y stock</p>
-                </div>
-            </div>
-            <div id="kanbanContainer"></div>
-        </div>
-
-<div class="page-section" id="materiales">
-    <div class="content-header">
-        <div>
-            <h1 class="page-title">📦 Materiales</h1>
-            <p class="page-subtitle" id="materialesOpInfo">Verifica los materiales recibidos antes de empezar</p>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="cargarMaterialesOperario()" id="btnRefrescarMateriales">
-            🔄 Refrescar
-        </button>
-    </div>
-    <div id="materialesContainer">
-        <div class="empty-state">⏳ Cargando...</div>
-    </div>
-</div>
-
-<div class="page-section" id="verificar-materiales">
-    <div class="content-header">
-        <div>
-            <h1 class="page-title">📷 Verificar Materiales</h1>
-            <p class="page-subtitle" id="verifMatInfo">Escanea la etiqueta para verificar el material recibido</p>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="cargarVerificarMateriales()" id="btnRefrescarVerifMat">
-            🔄 Refrescar
-        </button>
-    </div>
-    <div id="verifMatContainer">
-        <div class="empty-state">⏳ Cargando...</div>
-    </div>
-</div>
-
-<div class="page-section" id="chat">
-    <div class="content-header">
-        <div>
-            <h1 class="page-title">💬 Chat</h1>
-            <p class="page-subtitle">Conversaciones privadas</p>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="abrirModalNuevoChat()" style="padding:8px 14px;">➕ Nuevo chat</button>
-    </div>
-    <div id="chatContainer">
-        <div id="chatListaConversaciones" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="empty-state">⏳ Cargando chats...</div>
-        </div>
-
-        <div id="chatConversacionAbierta" style="display:none;"></div>
-    </div>
-</div>
-
-<div class="page-section" id="notificaciones">
-    <div class="content-header">
-        <div>
-            <h1 class="page-title">🔔 Notificaciones</h1>
-            <p class="page-subtitle">Resultados de control de calidad</p>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="cargarNotificaciones()" style="padding:8px 14px;">🔄 Refrescar</button>
-    </div>
-    <div id="notificacionesContainer">
-        <div class="empty-state">⏳ Cargando...</div>
-    </div>
-</div>
-
-        <div class="page-section" id="admin">
-            <div class="content-header">
-                <div>
-                    <h1 class="page-title" id="adminPageTitle">Administración</h1>
-                </div>
-            </div>
-
-            <div class="admin-panel" id="adminPanelOperarios" style="display:none;">
-                <div class="panel">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-                        <h3 style="margin:0;">👥 Operarios</h3>
-                        <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevoOperario()" style="padding:8px 14px;">➕ Nuevo Operario</button>
-                    </div>
-
-                    <div style="margin-bottom:1rem;">
-                        <input type="text" id="adminOperariosBusqueda" placeholder="🔍 Buscar operario..." oninput="cargarAdminOperarios()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--gray-300);font-size:0.85rem;font-family:inherit;">
-                    </div>
-
-                    <div id="adminOperariosList" class="items-list" style="max-height:400px;">
-                        <div class="empty-state">⏳ Cargando...</div>
-                    </div>
-
-                    <div id="adminOperariosForm" style="display:none;margin-top:12px;background:var(--gray-50);padding:16px;border-radius:12px;border:2px solid var(--secondary);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                            <h4 style="margin:0;color:var(--primary);">✏️ <span id="adminOperarioFormTitulo">Editar Operario</span></h4>
-                            <button onclick="cerrarFormOperario()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--gray-600);">✕</button>
-                        </div>
-
-                        <input type="hidden" id="adminOperarioId">
-
-                        <div class="form-group">
-                            <label>👤 Nombre</label>
-                            <input type="text" id="adminOperarioNombre" placeholder="Ej: Sammy" maxlength="30">
-                        </div>
-
-                        <div class="form-group">
-                            <label>💼 Puesto</label>
-                            <select id="adminOperarioPuesto">
-                                <option value="operario">👤 Operario</option>
-                                <option value="supervisor">👨‍💼 Supervisor</option>
-                                <option value="admin">⚙️ Admin</option>
-                            </select>
-                            <small style="color:var(--gray-600);font-size:0.7rem;">Los supervisores y admins ven el panel de administración.</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label>🔒 PIN (opcional)</label>
-                            <input type="password" id="adminOperarioPin" placeholder="Dejar vacío para no cambiar" maxlength="6" inputmode="numeric">
-                            <small style="color:var(--gray-600);font-size:0.7rem;">Se guarda hasheado (SHA-256). Si lo dejas vacío, se mantiene el PIN actual.</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label>🎨 Color de avatar</label>
-                            <div id="adminOperarioColorPicker" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-                        </div>
-
-                        <div style="display:flex;gap:8px;margin-top:6px;">
-                            <button class="btn btn-success" onclick="guardarOperarioAdmin()" style="flex:1;">💾 Guardar</button>
-                            <button class="btn btn-danger btn-sm" onclick="eliminarOperarioAdmin()" id="btnEliminarOperario" style="display:none;">🗑️ Eliminar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="admin-panel" id="adminPanelEstaciones" style="display:none;">
-                <div class="panel">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-                        <h3 style="margin:0;">📍 Estaciones</h3>
-                        <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevaEstacion()" style="padding:8px 14px;">➕ Nueva Estación</button>
-                    </div>
-
-                    <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-                        <div style="flex:1;min-width:150px;">
-                            <input type="text" id="adminEstacionesBusqueda" placeholder="🔍 Buscar estación..." oninput="cargarAdminEstaciones()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                        </div>
-                        <select id="filtroModeloAdminEstaciones" onchange="cargarAdminEstaciones()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                            <option value="todos">🏭 Todos los modelos</option>
-                            <option value="MS3">🔷 MS3</option>
-                            <option value="DC3">🔶 DC3</option>
-                        </select>
-                        <div id="adminEstacionesContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 estaciones</div>
-                    </div>
-
-                    <div id="adminEstacionesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
-                        <div class="empty-state">⏳ Cargando...</div>
-                    </div>
-
-                    <div id="adminEstacionesForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                            <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminEstacionFormTitulo">Editar Estación</span></h4>
-                            <button onclick="cerrarFormEstacion()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-                        </div>
-
-                        <input type="hidden" id="adminEstacionId">
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>📍 Nombre de la estación *</label>
-                                <input type="text" id="adminEstacionNombre" placeholder="Ej: Estación 0" maxlength="40" oninput="actualizarPreviewEstacion()">
-                                <small style="color:var(--gray-600);font-size:0.7rem;">Debe ser único dentro del modelo.</small>
-                            </div>
-                            <div class="form-group">
-                                <label>📝 Descripción</label>
-                                <input type="text" id="adminEstacionDescripcion" placeholder="Ej: Zona de premontaje" maxlength="60" oninput="actualizarPreviewEstacion()">
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>🏭 Modelo *</label>
-                            <div style="display:flex;gap:10px;margin-top:4px;">
-                                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.15s ease;" id="radioModeloMS3Label">
-                                    <input type="radio" name="adminEstacionModelo" value="MS3" id="radioModeloMS3" checked onchange="actualizarPreviewEstacion()" style="display:none;">
-                                    <span style="font-size:1.3rem;">🔷</span>
-                                    <span>MS3</span>
-                                </label>
-                                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.15s ease;" id="radioModeloDC3Label">
-                                    <input type="radio" name="adminEstacionModelo" value="DC3" id="radioModeloDC3" onchange="actualizarPreviewEstacion()" style="display:none;">
-                                    <span style="font-size:1.3rem;">🔶</span>
-                                    <span>DC3</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div style="background:white;border-radius:10px;padding:14px;margin-top:14px;border:1px dashed #cbd5e1;">
-                            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">👁️ Vista previa</div>
-                            <div id="adminEstacionPreview" style="display:flex;align-items:center;gap:12px;"></div>
-                        </div>
-                         <div class="form-group" style="margin-top:14px;">
-    <label>🎨 Color de la estación</label>
-    <div id="adminEstacionColorPicker" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
-</div>
-                        <div style="display:flex;gap:8px;margin-top:16px;">
-                            <button class="btn btn-success" onclick="guardarEstacionAdmin()" style="flex:1;">💾 Guardar Estación</button>
-                            <button class="btn btn-danger btn-sm" onclick="eliminarEstacionAdmin()" id="btnEliminarEstacion" style="display:none;">🗑️ Eliminar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="admin-panel" id="adminPanelOperaciones" style="display:none;">
-                <div class="panel">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-                        <h3 style="margin:0;">🔢 Operaciones</h3>
-                        <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevaOperacion()" style="padding:8px 14px;">➕ Nueva Operación</button>
-                    </div>
-
-                    <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-                        <div style="flex:1;min-width:150px;">
-                            <input type="text" id="adminOperacionesBusqueda" placeholder="🔍 Buscar por número o descripción..." oninput="cargarAdminOperaciones()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                        </div>
-                        <select id="filtroModeloAdminOperaciones" onchange="cargarAdminOperaciones()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                            <option value="todos">🏭 Todos los modelos</option>
-                            <option value="MS3">🔷 MS3</option>
-                            <option value="DC3">🔶 DC3</option>
-                        </select>
-                        <div id="adminOperacionesContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 operaciones</div>
-                    </div>
-
-                    <div id="adminOperacionesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
-                        <div class="empty-state" style="grid-column:1/-1;">⏳ Cargando...</div>
-                    </div>
-
-                    <div id="adminOperacionesForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                            <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminOperacionFormTitulo">Editar Operación</span></h4>
-                            <button onclick="cerrarFormOperacion()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-                        </div>
-
-                        <input type="hidden" id="adminOperacionId">
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>🔢 Número de operación *</label>
-                                <input type="text" id="adminOperacionNumero" placeholder="Ej: 525277" maxlength="20" oninput="actualizarPreviewOperacion()">
-                                <small style="color:var(--gray-600);font-size:0.7rem;">Debe ser único dentro del modelo.</small>
-                            </div>
-                            <div class="form-group">
-                                <label>📝 Descripción</label>
-                                <input type="text" id="adminOperacionDescripcion" placeholder="Ej: Convertidor MS3 Lote A" maxlength="60" oninput="actualizarPreviewOperacion()">
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>🏭 Modelo *</label>
-                            <div style="display:flex;gap:10px;margin-top:4px;">
-                                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.15s ease;" id="radioOpModeloMS3Label">
-                                    <input type="radio" name="adminOperacionModelo" value="MS3" id="radioOpModeloMS3" checked onchange="actualizarPreviewOperacion()" style="display:none;">
-                                    <span style="font-size:1.3rem;">🔷</span>
-                                    <span>MS3</span>
-                                </label>
-                                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.15s ease;" id="radioOpModeloDC3Label">
-                                    <input type="radio" name="adminOperacionModelo" value="DC3" id="radioOpModeloDC3" onchange="actualizarPreviewOperacion()" style="display:none;">
-                                    <span style="font-size:1.3rem;">🔶</span>
-                                    <span>DC3</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div style="background:white;border-radius:10px;padding:14px;margin-top:14px;border:1px dashed #cbd5e1;">
-                            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">👁️ Vista previa</div>
-                            <div id="adminOperacionPreview" style="display:flex;align-items:center;gap:12px;"></div>
-                        </div>
-
-                        <div style="display:flex;gap:8px;margin-top:16px;">
-                            <button class="btn btn-success" onclick="guardarOperacionAdmin()" style="flex:1;">💾 Guardar Operación</button>
-                            <button class="btn btn-danger btn-sm" onclick="eliminarOperacionAdmin()" id="btnEliminarOperacion" style="display:none;">🗑️ Eliminar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-<div class="admin-panel" id="adminPanelMontajes" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">📦 Montajes</h3>
-            <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevoMontaje()" style="padding:8px 14px;">➕ Nuevo Montaje</button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="adminMontajesBusqueda" placeholder="🔍 Buscar por nombre o descripción..." oninput="cargarAdminMontajes()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="filtroModeloAdminMontajes" onchange="cargarAdminMontajes()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">🏭 Todos los modelos</option>
-                <option value="MS3">🔷 MS3</option>
-                <option value="DC3">🔶 DC3</option>
-            </select>
-            <select id="filtroEstacionAdminMontajes" onchange="cargarAdminMontajes()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todas">📍 Todas las estaciones</option>
-            </select>
-            <div id="adminMontajesContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 montajes</div>
-        </div>
-
-        <div id="adminMontajesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
-            <div class="empty-state" style="grid-column:1/-1;">⏳ Cargando...</div>
-        </div>
-
-        <div id="adminMontajesForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminMontajeFormTitulo">Editar Montaje</span></h4>
-                <button onclick="cerrarFormMontaje()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-            </div>
-
-            <input type="hidden" id="adminMontajeId">
-
-            <details open style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-                <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-                    📋 Datos básicos
-                </summary>
-                <div style="padding:16px;">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>📝 Nombre del montaje *</label>
-                            <input type="text" id="adminMontajeNombre" placeholder="Ej: 110" maxlength="60" oninput="actualizarPreviewMontaje()">
-                        </div>
-                        <div class="form-group">
-                            <label>🔢 Orden *</label>
-                            <input type="number" id="adminMontajeOrden" placeholder="Ej: 1" min="1" oninput="actualizarPreviewMontaje()">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>⏱️ Tiempo estimado (horas) *</label>
-                            <input type="number" id="adminMontajeTiempo" placeholder="Ej: 0.5" min="0" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label>🎨 Icono (opcional)</label>
-                            <input type="text" id="adminMontajeIcono" placeholder="Ej: ⚙️" maxlength="4">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>📍 Estación *</label>
-                        <select id="adminMontajeEstacion" onchange="onCambioEstacionMontaje()" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-                            <option value="">— Selecciona una estación —</option>
-                        </select>
-                        <small style="color:var(--gray-600);font-size:0.7rem;">El modelo (MS3/DC3) se asigna automáticamente según la estación.</small>
-                    </div>
-
-<div class="form-group">
-    <label>👷 Asignado a</label>
-    <select id="adminMontajeOperario" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-        <option value="">— Sin asignar —</option>
-        <option value="operario1">Operario 1</option>
-        <option value="operario2">Operario 2</option>
-    </select>
-    <small style="color:var(--gray-600);font-size:0.7rem;">Lo usan los filtros Operario 1 / Operario 2 de la vista del operario y del dashboard.</small>
-</div>
-
-<div class="form-group">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input type="checkbox" id="adminMontajeEsTQC" style="width:18px;height:18px;">
-        <span>🔍 Montaje TQC (control de calidad)</span>
-    </label>
-    <small style="color:var(--gray-600);font-size:0.7rem;">Su tiempo se muestra aparte como "TQC pendiente" en el dashboard y en el badge del cronómetro.</small>
-</div>
-                    <div class="form-group">
-                        <label>📝 Descripción</label>
-                        <input type="text" id="adminMontajeDescripcion" placeholder="Descripción breve del montaje" maxlength="120">
-                    </div>
-
-                    <div class="form-group">
-                        <label>🔗 Depende de (opcional)</label>
-                        <input type="text" id="adminMontajeDependeDe" placeholder="Nombre o código del montaje del que depende" maxlength="60">
-                        <small style="color:var(--gray-600);font-size:0.7rem;">Si este montaje solo se puede hacer después de otro.</small>
-                    </div>
-                </div>
-            </details>
-
-            <details style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-                <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-                    🔩 Tornillería <span id="adminMontajeTornCount" style="color:#8b5cf6;font-weight:600;font-size:0.8rem;">(0)</span>
-                </summary>
-                <div style="padding:16px;">
-                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-                        <select id="adminMontajeTornSelector" style="flex:1;min-width:180px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                            <option value="">— Selecciona tornillería —</option>
-                        </select>
-                        <input type="number" id="adminMontajeTornCantidad" placeholder="Cant." value="1" min="1" style="width:80px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                        <button type="button" onclick="añadirTornilleriaMontaje()" class="btn btn-primary btn-sm" style="padding:8px 14px;">➕ Añadir</button>
-                    </div>
-                    <div id="adminMontajeTornLista" style="display:flex;flex-direction:column;gap:6px;"></div>
-                </div>
-            </details>
-
-            <details style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-                <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-                    🧪 Materiales y componentes <span id="adminMontajeMatCount" style="color:#f97316;font-weight:600;font-size:0.8rem;">(0)</span>
-                </summary>
-                <div style="padding:16px;">
-                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-                        <select id="adminMontajeMatSelector" style="flex:1;min-width:180px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                            <option value="">— Selecciona material —</option>
-                        </select>
-                        <input type="number" id="adminMontajeMatCantidad" placeholder="Cant." value="1" min="1" style="width:80px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                        <button type="button" onclick="añadirMaterialMontaje()" class="btn btn-primary btn-sm" style="padding:8px 14px;">➕ Añadir</button>
-                    </div>
-                    <div id="adminMontajeMatLista" style="display:flex;flex-direction:column;gap:6px;"></div>
-                </div>
-            </details>
-
-            <details style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-                <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-                    🔗 Piezas Kanban <span id="adminMontajePiezaCount" style="color:#10b981;font-weight:600;font-size:0.8rem;">(0)</span>
-                </summary>
-                <div style="padding:16px;">
-                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-                        <select id="adminMontajePiezaSelector" style="flex:1;min-width:180px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                            <option value="">— Selecciona pieza —</option>
-                        </select>
-                        <input type="number" id="adminMontajePiezaCantidad" placeholder="Cant." value="1" min="1" style="width:80px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                        <button type="button" onclick="añadirPiezaMontaje()" class="btn btn-primary btn-sm" style="padding:8px 14px;">➕ Añadir</button>
-                    </div>
-                    <div id="adminMontajePiezaLista" style="display:flex;flex-direction:column;gap:6px;"></div>
-                </div>
-            </details>
-
-<details style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-    <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-        🔧 Pares de apriete (opcional)
-    </summary>
-    <div style="padding:16px;">
-        <div class="form-group">
-            <label>Pares requeridos (Nm, separados por comas)</label>
-            <input type="text" id="adminMontajePares" placeholder="Ej: 56,120,25" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-            <small style="color:var(--gray-600);font-size:0.7rem;">Solo si el montaje necesita llaves dinamométricas específicas.</small>
-        </div>
-    </div>
-</details>
-
-<details style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-    <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-        📋 Pasos del montaje <span id="adminMontajePasosCount" style="color:#6366f1;font-weight:600;font-size:0.8rem;">(0)</span>
-    </summary>
-    <div style="padding:16px;">
-        <p style="font-size:0.78rem;color:#64748b;margin:0 0 12px 0;line-height:1.5;">
-            ⚠️ El operario deberá <strong>confirmar todos estos pasos</strong> antes de poder terminar el montaje. Úsalos para evitar olvidos.
-        </p>
-
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-            <input type="text" id="adminMontajeNuevoPaso" placeholder="Ej: Apretar 4 tornillos M12 lado izquierdo (56Nm)" maxlength="120" style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();añadirPasoMontaje();}">
-            <button type="button" onclick="añadirPasoMontaje()" class="btn btn-primary btn-sm" style="padding:8px 14px;">➕ Añadir paso</button>
-        </div>
-
-        <div id="adminMontajePasosLista" style="display:flex;flex-direction:column;gap:6px;"></div>
-    </div>
-</details>
-
-            <details style="background:white;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:12px;overflow:hidden;">
-                <summary style="padding:12px 16px;cursor:pointer;font-weight:700;color:#1e293b;background:#f8fafc;font-size:0.9rem;user-select:none;">
-                    📖 Instrucciones (opcional)
-                </summary>
-                <div style="padding:16px;">
-                    <div class="form-group">
-                        <label>📋 Pasos de montaje (texto)</label>
-                        <textarea id="adminMontajeInstrucciones" placeholder="1. Paso uno&#10;2. Paso dos&#10;3. Paso tres" rows="6" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;resize:vertical;"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>▶️ URL de video (opcional)</label>
-                        <input type="text" id="adminMontajeVideo" placeholder="https://youtube.com/watch?v=..." style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-                        <small style="color:var(--gray-600);font-size:0.7rem;">YouTube, Vimeo o enlace directo a .mp4</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label>📄 URLs de PDFs (separados por saltos de línea)</label>
-                        <textarea id="adminMontajePdfs" placeholder="https://...pdf&#10;https://...pdf" rows="3" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;resize:vertical;"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>🖼️ URLs de fotos (separados por saltos de línea)</label>
-                        <textarea id="adminMontajeFotos" placeholder="https://...jpg&#10;https://...png" rows="3" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;resize:vertical;"></textarea>
-                    </div>
-                </div>
-            </details>
-
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button class="btn btn-success" onclick="guardarMontajeAdmin()" style="flex:1;">💾 Guardar Montaje</button>
-                <button class="btn btn-danger btn-sm" onclick="eliminarMontajeAdmin()" id="btnEliminarMontaje" style="display:none;">🗑️ Eliminar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelKanban" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">📦 Piezas Kanban</h3>
-            <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevaPieza()" style="padding:8px 14px;">➕ Nueva Pieza</button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="adminPiezasBusqueda" placeholder="🔍 Buscar por nombre, código o ubicación..." oninput="cargarAdminPiezas()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="filtroStockAdminPiezas" onchange="cargarAdminPiezas()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">📦 Todas</option>
-                <option value="criticos">⚠️ Stock crítico</option>
-                <option value="agotados">🚫 Agotadas</option>
-                <option value="ok">✅ Stock OK</option>
-            </select>
-            <div id="adminPiezasContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 piezas</div>
-        </div>
-
-        <div id="adminPiezasList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
-            <div class="empty-state" style="grid-column:1/-1;">⏳ Cargando...</div>
-        </div>
-
-        <div id="adminPiezasForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminPiezaFormTitulo">Editar Pieza</span></h4>
-                <button onclick="cerrarFormPieza()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-            </div>
-
-            <input type="hidden" id="adminPiezaId">
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>📝 Nombre *</label>
-                    <input type="text" id="adminPiezaNombre" placeholder="Ej: Junta 5mm" maxlength="60" oninput="actualizarPreviewPieza()">
-                </div>
-                <div class="form-group">
-                    <label>🔢 Código *</label>
-                    <input type="text" id="adminPiezaCodigo" placeholder="Ej: 3EH-1234-0001R" maxlength="40" oninput="actualizarPreviewPieza()">
-                    <small style="color:var(--gray-600);font-size:0.7rem;">Se usa como identificador de la pieza.</small>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>📍 Ubicación</label>
-                <input type="text" id="adminPiezaUbicacion" placeholder="Ej: B3" maxlength="30" oninput="actualizarPreviewPieza()">
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>📦 Stock actual</label>
-                    <input type="number" id="adminPiezaStockActual" placeholder="0" min="0" value="0" oninput="actualizarPreviewPieza()">
-                </div>
-                <div class="form-group">
-                    <label>⚠️ Stock crítico</label>
-                    <input type="number" id="adminPiezaStockCritico" placeholder="5" min="0" value="5" oninput="actualizarPreviewPieza()">
-                    <small style="color:var(--gray-600);font-size:0.7rem;">Cuando el stock baje a este valor, se marcará como crítico.</small>
-                </div>
-            </div>
-
-            <div style="background:white;border-radius:10px;padding:14px;margin-top:14px;border:1px dashed #cbd5e1;">
-                <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">👁️ Vista previa</div>
-                <div id="adminPiezaPreview" style="display:flex;align-items:center;gap:12px;"></div>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button class="btn btn-success" onclick="guardarPiezaAdmin()" style="flex:1;">💾 Guardar Pieza</button>
-                <button class="btn btn-danger btn-sm" onclick="eliminarPiezaAdmin()" id="btnEliminarPieza" style="display:none;">🗑️ Eliminar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelMateriales" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">🧪 Materiales</h3>
-            <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevoMaterial()" style="padding:8px 14px;">➕ Nuevo Material</button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="adminMaterialesBusqueda" placeholder="🔍 Buscar por nombre o código..." oninput="cargarAdminMateriales()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-      <select id="filtroTipoAdminMateriales" onchange="cargarAdminMateriales()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-    <option value="todos">📦 Todos</option>
-    <option value="normales">🔧 Solo normales</option>
-    <option value="escaneo">📷 Solo con escaneo</option>
-    <option value="resistencias">⚡ Solo resistencias</option>
-</select>
-            <div id="adminMaterialesContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 materiales</div>
-        </div>
-
-        <div id="adminMaterialesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
-            <div class="empty-state" style="grid-column:1/-1;">⏳ Cargando...</div>
-        </div>
-
-        <div id="adminMaterialesForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminMaterialFormTitulo">Editar Material</span></h4>
-                <button onclick="cerrarFormMaterial()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-            </div>
-
-            <input type="hidden" id="adminMaterialId">
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>📝 Nombre del material *</label>
-                    <input type="text" id="adminMaterialNombre" placeholder="Ej: Busbar 18" maxlength="60" oninput="actualizarPreviewMaterial()">
-                </div>
-                <div class="form-group">
-                    <label>🔢 Código / Referencia</label>
-                    <input type="text" id="adminMaterialCodigo" placeholder="Ej: 3EH-12345-0001R" maxlength="40" oninput="actualizarPreviewMaterial()">
-                    <small style="color:var(--gray-600);font-size:0.7rem;">Opcional pero recomendado.</small>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>📍 Ubicación</label>
-                <input type="text" id="adminMaterialUbicacion" placeholder="Ej: A2" maxlength="30" oninput="actualizarPreviewMaterial()">
-            </div>
-
-         <div class="form-group" style="margin-top:14px;">
-    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="adminMaterialEscaneoLabel">
-        <input type="checkbox" id="adminMaterialRequiereEscaneo" onchange="actualizarPreviewMaterial()" style="width:20px;height:20px;cursor:pointer;">
-        <div style="flex:1;">
-            <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">📷 Requiere escaneo QR</div>
-            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Marca esta casilla si el material necesita ser escaneado durante el montaje.</div>
-        </div>
-    </label>
-</div>
-
-<div class="form-group" style="margin-top:8px;">
-    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="adminMaterialResistenciaLabel">
-        <input type="checkbox" id="adminMaterialEsResistencia" onchange="actualizarPreviewMaterial()" style="width:20px;height:20px;cursor:pointer;">
-        <div style="flex:1;">
-            <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">⚡ Es resistencia</div>
-            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Marca esta casilla si el material es una resistencia eléctrica.</div>
-        </div>
-    </label>
-</div>
-<div class="form-group" id="adminMaterialNombresResistenciasGroup" style="display:none;margin-top:8px;">
-    <label style="display:block;font-size:0.8rem;font-weight:700;color:#92400e;margin-bottom:6px;">
-        📋 Lista de nombres de resistencias
-    </label>
-    <textarea id="adminMaterialNombresResistencias" rows="8"
-        placeholder="RA1101&#10;RA1109&#10;RA1121&#10;RA2101&#10;RA2109"
-        style="width:100%;padding:10px 12px;border:2px solid #fbbf24;border-radius:10px;font-size:0.85rem;font-family:'SF Mono',Monaco,monospace;resize:vertical;background:#fffbeb;font-weight:700;line-height:1.7;color:#78350f;letter-spacing:0.02em;"></textarea>
-    <small style="color:#92400e;font-size:0.72rem;display:block;margin-top:6px;line-height:1.5;">
-        ⚠️ <strong>Un nombre por línea</strong>. Se usarán en orden en el modal de resistencias del montaje.<br>
-        Ej: si el montaje pide <strong>18 uds</strong> y defines 18 nombres → cada fila muestra su nombre.<br>
-        Si defines menos de los que pide el montaje → las sobrantes usan el nombre del material.
-    </small>
-</div>
-            <div style="background:white;border-radius:10px;padding:14px;margin-top:14px;border:1px dashed #cbd5e1;">
-                <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">👁️ Vista previa</div>
-                <div id="adminMaterialPreview" style="display:flex;align-items:center;gap:12px;"></div>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button class="btn btn-success" onclick="guardarMaterialAdmin()" style="flex:1;">💾 Guardar Material</button>
-                <button class="btn btn-danger btn-sm" onclick="eliminarMaterialAdmin()" id="btnEliminarMaterial" style="display:none;">🗑️ Eliminar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelHerramientas" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">🔧 Herramientas</h3>
-            <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevaHerramienta()" style="padding:8px 14px;">➕ Nueva Herramienta</button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="adminHerramientasBusqueda" placeholder="🔍 Buscar por nombre, código o ubicación..." oninput="cargarAdminHerramientas()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="filtroTipoAdminHerramientas" onchange="cargarAdminHerramientas()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">🔧 Todos los tipos</option>
-                <option value="Llave Dinamométrica">🔧 Dinamométricas</option>
-                <option value="Llave Fija">🔩 Llaves Fijas</option>
-                <option value="Destornillador">🪛 Destornilladores</option>
-                <option value="Otro">📦 Otros</option>
-            </select>
-       <select id="filtroEstadoAdminHerramientas" onchange="cargarAdminHerramientas()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-    <option value="todos">📊 Todos los estados</option>
-    <option value="disponible">🟢 Disponibles</option>
-    <option value="reservada">🔵 Reservadas</option>
-    <option value="en_uso">🟡 En uso</option>
-    <option value="en_calibracion">🟠 En calibración</option>
-</select>
-            <div id="adminHerramientasContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 items</div>
-        </div>
-
-        <div id="adminHerramientasList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
-            <div class="empty-state" style="grid-column:1/-1;">⏳ Cargando...</div>
-        </div>
-
-        <div id="adminHerramientasForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminHerramientaFormTitulo">Editar Herramienta</span></h4>
-                <button onclick="cerrarFormHerramienta()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-            </div>
-
-            <input type="hidden" id="adminHerramientaId">
-
-            <div class="form-group">
-                <label>🏷️ Tipo *</label>
-                <div id="adminHerramientaTipoPicker" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px;">
-                    <label class="tipo-radio-herr" data-tipo="Llave Dinamométrica" onclick="seleccionarTipoHerramienta('Llave Dinamométrica')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">🔧</span>
-                        <span>Llave Dinamométrica</span>
-                    </label>
-                    <label class="tipo-radio-herr" data-tipo="Llave Fija" onclick="seleccionarTipoHerramienta('Llave Fija')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">🔩</span>
-                        <span>Llave Fija</span>
-                    </label>
-                    <label class="tipo-radio-herr" data-tipo="Destornillador" onclick="seleccionarTipoHerramienta('Destornillador')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">🪛</span>
-                        <span>Destornillador</span>
-                    </label>
-                    <label class="tipo-radio-herr" data-tipo="Otro" onclick="seleccionarTipoHerramienta('Otro')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">📦</span>
-                        <span>Otro</span>
-                    </label>
-                </div>
-            </div>
-
-    <div class="form-row" style="margin-top:14px;">
-    <div class="form-group">
-        <label>#️⃣ Número (automático)</label>
-        <input type="text" id="adminHerramientaNumero" placeholder="Se genera al guardar" readonly style="background:#f1f5f9;color:#64748b;cursor:not-allowed;font-family:'SF Mono',Monaco,monospace;text-align:center;font-weight:700;">
-        <small style="color:var(--gray-600);font-size:0.7rem;">🔒 Enumeración por tipo.</small>
-    </div>
-    <div class="form-group">
-        <label>🔢 Código (automático)</label>
-        <input type="text" id="adminHerramientaCodigo" placeholder="Ej: 3EH-1234-0001R" maxlength="40" oninput="actualizarPreviewHerramienta()" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-        <small style="color:var(--gray-600);font-size:0.7rem;">🔒 Se asigna automáticamente al guardar.</small>
-    </div>
-</div>
-
-<div class="form-group">
-    <label>📝 Nombre *</label>
-    <input type="text" id="adminHerramientaNombre" placeholder="Ej: Llave dinamométrica 56Nm" maxlength="60" oninput="actualizarPreviewHerramienta()">
-</div>
-
-            <div class="form-row">
-                <div class="form-group" id="adminHerramientaParGroup">
-                    <label>💪 Par de apriete (Nm)</label>
-                    <input type="number" id="adminHerramientaPar" placeholder="Ej: 56" min="0" step="0.1" oninput="actualizarPreviewHerramienta()">
-                    <small style="color:var(--gray-600);font-size:0.7rem;">Solo para llaves dinamométricas.</small>
-                </div>
-                <div class="form-group">
-                    <label>📍 Ubicación</label>
-                    <input type="text" id="adminHerramientaUbicacion" placeholder="Ej: A2" maxlength="30" oninput="actualizarPreviewHerramienta()">
-                </div>
-            </div>
-
-<div class="form-group">
-    <label>📊 Estado</label>
-    <select id="adminHerramientaEstado" onchange="onCambioEstadoHerramienta()" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-        <option value="disponible">🟢 Disponible</option>
-        <option value="reservada">🔵 Reservada</option>
-        <option value="en_uso">🟡 En uso</option>
-        <option value="en_calibracion">🟠 En calibración</option>
-    </select>
-</div>
-
-<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <span style="font-size:1.1rem;">📅</span>
-        <span style="font-weight:700;color:#1e293b;font-size:0.9rem;">Calibración</span>
-        <span id="adminHerramientaCalibEstado" style="margin-left:auto;font-size:0.7rem;font-weight:700;padding:3px 10px;border-radius:99px;"></span>
-    </div>
-
-    <div class="form-row">
-        <div class="form-group">
-            <label>📅 Última calibración</label>
-            <input type="date" id="adminHerramientaFechaUltimaCalib" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-            <small style="color:var(--gray-600);font-size:0.7rem;">Cuándo se calibró por última vez.</small>
-        </div>
-   <div class="form-group">
-    <label>⏰ Vencimiento</label>
-    <input type="date" id="adminHerramientaFechaProxCalib" oninput="actualizarBadgeCalibracion()" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-    <small style="color:var(--gray-600);font-size:0.7rem;">Cuándo caduca la calibración actual.</small>
-</div>
-    </div>
-
-    <div id="adminHerramientaFechaEnvioGroup" style="display:none;">
-        <div class="form-group">
-            <label>📤 Fecha de envío a calibrar</label>
-            <input type="date" id="adminHerramientaFechaEnvioCalib" style="width:100%;padding:0.55rem;border:1px solid var(--gray-300);border-radius:6px;font-size:0.82rem;font-family:inherit;">
-        </div>
-    </div>
-</div>
-
-            <div class="form-group">
-                <label>💬 Notas (opcional)</label>
-                <input type="text" id="adminHerramientaNotas" placeholder="Ej: Le falta el estuche" maxlength="120" oninput="actualizarPreviewHerramienta()">
-            </div>
-
-            <div style="background:white;border-radius:10px;padding:14px;margin-top:14px;border:1px dashed #cbd5e1;">
-                <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">👁️ Vista previa</div>
-                <div id="adminHerramientaPreview" style="display:flex;align-items:center;gap:12px;"></div>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button class="btn btn-success" onclick="guardarHerramientaAdmin()" style="flex:1;">💾 Guardar</button>
-                <button class="btn btn-danger btn-sm" onclick="eliminarHerramientaAdmin()" id="btnEliminarHerramienta" style="display:none;">🗑️ Eliminar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelEntregarMateriales" style="display:none;">
-    <div class="panel">
-        <h3>📥 Entregar Materiales</h3>
-        <p style="font-size:0.85rem;color:#64748b;margin-bottom:1rem;">
-            Selecciona una operación y estación para ver y marcar los materiales a entregar.
-        </p>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem;background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div>
-                <label style="display:block;font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:4px;">📋 Operación</label>
-                <select id="entregaOperacionSelect" onchange="onCambioOperacionEntrega()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-                    <option value="">— Selecciona operación —</option>
-                </select>
-            </div>
-            <div>
-                <label style="display:block;font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:4px;">📍 Estación</label>
-                <select id="entregaEstacionSelect" onchange="cargarEntregaMateriales()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;" disabled>
-                    <option value="">— Selecciona estación —</option>
-                </select>
-            </div>
-        </div>
-
-        <div id="adminEntregaMaterialesList">
-            <div class="empty-state">👆 Selecciona una operación y estación para empezar</div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelRegistroVerificaciones" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">📋 Registro de Verificaciones</h3>
-            <button class="btn btn-outline btn-sm" onclick="cargarRegistroVerificaciones()" style="padding:8px 14px;">🔄 Refrescar</button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="regVerifBusqueda" placeholder="🔍 Buscar por montaje u operario..." oninput="cargarRegistroVerificaciones()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="regVerifFiltroOperario" onchange="cargarRegistroVerificaciones()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">👤 Todos los operarios</option>
-            </select>
-            <select id="regVerifFiltroFecha" onchange="cargarRegistroVerificaciones()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todo">📅 Todo</option>
-                <option value="hoy">📅 Hoy</option>
-                <option value="semana">📅 Últimos 7 días</option>
-                <option value="mes">📅 Últimos 30 días</option>
-            </select>
-            <div id="regVerifContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 registros</div>
-        </div>
-
-        <div id="regVerifLista" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="empty-state">⏳ Cargando...</div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelRegistroHerramientas" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">📜 Registro de Herramientas</h3>
-            <button class="btn btn-outline btn-sm" onclick="cargarRegistroHerramientas()" style="padding:8px 14px;">🔄 Refrescar</button>
-        </div>
-
-        <div id="regHerrStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem;">
-            <div style="background:linear-gradient(135deg,#eef2ff,white);border:1px solid #c7d2fe;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">📜</div>
-                <div id="regHerrStatTotal" style="font-size:1.6rem;font-weight:800;color:#4338ca;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#4338ca;font-weight:600;margin-top:4px;">Registros</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#ecfdf5,white);border:1px solid #a7f3d0;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">👤</div>
-                <div id="regHerrStatOperarios" style="font-size:1.6rem;font-weight:800;color:#047857;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#047857;font-weight:600;margin-top:4px;">Operarios</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#fef3c7,white);border:1px solid #fde68a;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">🔧</div>
-                <div id="regHerrStatHerramientas" style="font-size:1.6rem;font-weight:800;color:#92400e;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#92400e;font-weight:600;margin-top:4px;">Herramientas</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#fff7ed,white);border:1px solid #fed7aa;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">📅</div>
-                <div id="regHerrStatSemana" style="font-size:1.6rem;font-weight:800;color:#c2410c;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#c2410c;font-weight:600;margin-top:4px;">Últimos 7 días</div>
-            </div>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="regHerrBusqueda"
-                    placeholder="🔍 Buscar por operario, herramienta, montaje, op..."
-                    oninput="cargarRegistroHerramientas()"
-                    style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="regHerrFiltroOperario" onchange="cargarRegistroHerramientas()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">👤 Todos los operarios</option>
-            </select>
-        <select id="regHerrFiltroOperacion" onchange="cargarRegistroHerramientas()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;max-width:180px;">
-    <option value="todas">🔢 Todas las operaciones</option>
-</select>
-<select id="regHerrFiltroFecha" onchange="cargarRegistroHerramientas()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-    <option value="todo">📅 Todo</option>
-    <option value="hoy">📅 Hoy</option>
-    <option value="semana">📅 7 días</option>
-    <option value="mes">📅 30 días</option>
-</select>
-<div id="regHerrContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 registros</div>
-        </div>
-
-        <div id="regHerrLista" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="empty-state">⏳ Cargando...</div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelMovimientosKanban" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">📊 Movimientos Kanban</h3>
-            <button class="btn btn-outline btn-sm" onclick="cargarMovimientosKanban()" style="padding:8px 14px;">🔄 Refrescar</button>
-        </div>
-
-        <div id="movKanbanStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem;">
-            <div style="background:linear-gradient(135deg,#eef2ff,white);border:1px solid #c7d2fe;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">📜</div>
-                <div id="movKanbanStatTotal" style="font-size:1.6rem;font-weight:800;color:#4338ca;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#4338ca;font-weight:600;margin-top:4px;">Total mov.</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#ecfdf5,white);border:1px solid #a7f3d0;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">📥</div>
-                <div id="movKanbanStatEntradas" style="font-size:1.6rem;font-weight:800;color:#047857;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#047857;font-weight:600;margin-top:4px;">Entradas hoy</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#fef2f2,white);border:1px solid #fecaca;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">📤</div>
-                <div id="movKanbanStatSalidas" style="font-size:1.6rem;font-weight:800;color:#b91c1c;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#b91c1c;font-weight:600;margin-top:4px;">Salidas hoy</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#fff7ed,white);border:1px solid #fed7aa;border-radius:14px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;margin-bottom:4px;">📦</div>
-                <div id="movKanbanStatPiezas" style="font-size:1.6rem;font-weight:800;color:#c2410c;line-height:1;">0</div>
-                <div style="font-size:0.72rem;color:#c2410c;font-weight:600;margin-top:4px;">Piezas movidas</div>
-            </div>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="movKanbanBusqueda"
-                    placeholder="🔍 Buscar por pieza, operario, montaje, op..."
-                    oninput="cargarMovimientosKanban()"
-                    style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="movKanbanFiltroTipo" onchange="cargarMovimientosKanban()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">📋 Todos los tipos</option>
-                <option value="entrada">📥 Entradas</option>
-                <option value="salida">📤 Salidas</option>
-                <option value="ajuste">✏️ Ajustes</option>
-            </select>
-            <select id="movKanbanFiltroPieza" onchange="cargarMovimientosKanban()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;max-width:200px;">
-                <option value="todas">📦 Todas las piezas</option>
-            </select>
-            <select id="movKanbanFiltroOperario" onchange="cargarMovimientosKanban()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">👤 Todos</option>
-            </select>
-            <select id="movKanbanFiltroFecha" onchange="cargarMovimientosKanban()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todo">📅 Todo</option>
-                <option value="hoy">📅 Hoy</option>
-                <option value="semana">📅 7 días</option>
-                <option value="mes">📅 30 días</option>
-            </select>
-            <div id="movKanbanContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;margin-left:auto;">0 movimientos</div>
-        </div>
-
-        <div id="movKanbanLista" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="empty-state">⏳ Cargando...</div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelTornilleria" style="display:none;">
-    <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem;">
-            <h3 style="margin:0;">🔩 Tornillería</h3>
-            <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevaTornilleria()" style="padding:8px 14px;">➕ Nueva Tornillería</button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="adminTornilleriaBusqueda" placeholder="🔍 Buscar por nombre, código o ubicación..." oninput="cargarAdminTornilleria()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="filtroTipoAdminTornilleria" onchange="cargarAdminTornilleria()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">📦 Todos los tipos</option>
-                <option value="Tornillo">🔩 Tornillos</option>
-                <option value="Tuerca">⚙️ Tuercas</option>
-                <option value="Arandela">🔘 Arandelas</option>
-                <option value="Otro">📦 Otros</option>
-            </select>
-            <div id="adminTornilleriaContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 items</div>
-        </div>
-
-<div id="adminTornilleriaList" style="display:flex;flex-direction:column;gap:22px;">
-    <div class="empty-state">⏳ Cargando...</div>
-</div>
-
-        <div id="adminTornilleriaForm" style="display:none;margin-top:16px;background:var(--gray-50);padding:20px;border-radius:14px;border:2px solid var(--secondary);box-shadow:0 8px 24px rgba(45,116,218,0.1);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;color:var(--primary);font-size:1rem;">✏️ <span id="adminTornilleriaFormTitulo">Editar Tornillería</span></h4>
-                <button onclick="cerrarFormTornilleria()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray-600);">✕</button>
-            </div>
-
-            <input type="hidden" id="adminTornilleriaId">
-
-            <div class="form-group">
-                <label>🏷️ Tipo *</label>
-                <div id="adminTornilleriaTipoPicker" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;">
-                    <label class="tipo-radio-torn" data-tipo="Tornillo" onclick="seleccionarTipoTornilleria('Tornillo')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">🔩</span>
-                        <span>Tornillo</span>
-                    </label>
-                    <label class="tipo-radio-torn" data-tipo="Tuerca" onclick="seleccionarTipoTornilleria('Tuerca')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">⚙️</span>
-                        <span>Tuerca</span>
-                    </label>
-                    <label class="tipo-radio-torn" data-tipo="Arandela" onclick="seleccionarTipoTornilleria('Arandela')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">🔘</span>
-                        <span>Arandela</span>
-                    </label>
-                    <label class="tipo-radio-torn" data-tipo="Otro" onclick="seleccionarTipoTornilleria('Otro')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid #cbd5e1;border-radius:10px;background:white;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s ease;">
-                        <span style="font-size:1.4rem;">📦</span>
-                        <span>Otro</span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="form-row" style="margin-top:14px;">
-                <div class="form-group">
-                    <label>📝 Nombre *</label>
-                    <input type="text" id="adminTornilleriaNombre" placeholder="Ej: M12x35" maxlength="40" oninput="actualizarPreviewTornilleria()">
-                </div>
-                <div class="form-group">
-                    <label>🔢 Código / Referencia</label>
-                    <input type="text" id="adminTornilleriaCodigo" placeholder="Ej: 3EH-6282726-0003R" maxlength="40" oninput="actualizarPreviewTornilleria()">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>📍 Ubicación</label>
-                <input type="text" id="adminTornilleriaUbicacion" placeholder="Ej: A2" maxlength="30" oninput="actualizarPreviewTornilleria()">
-            </div>
-
-            <div style="background:white;border-radius:10px;padding:14px;margin-top:14px;border:1px dashed #cbd5e1;">
-                <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">👁️ Vista previa</div>
-                <div id="adminTornilleriaPreview" style="display:flex;align-items:center;gap:12px;"></div>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button class="btn btn-success" onclick="guardarTornilleriaAdmin()" style="flex:1;">💾 Guardar</button>
-                <button class="btn btn-danger btn-sm" onclick="eliminarTornilleriaAdmin()" id="btnEliminarTornilleria" style="display:none;">🗑️ Eliminar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelInspeccion" style="display:none;">
-    <div class="panel">
-        <h3>🔍 Inspección de Calderería</h3>
-        <p style="font-size:0.85rem;color:#64748b;margin-bottom:1rem;">
-            Selecciona una operación y marca los puntos de inspección.
-        </p>
-
-        <div style="margin-bottom:1rem;">
-            <label style="display:block;font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:4px;">📋 Operación a inspeccionar</label>
-            <select id="inspeccionOperacionSelect" onchange="cargarInspeccionOperacion()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.9rem;font-family:inherit;font-weight:600;">
-                <option value="">— Selecciona una operación —</option>
-            </select>
-        </div>
-
-        <div id="inspeccionContenido">
-            <div class="empty-state">👆 Selecciona una operación para empezar</div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelConfigEscaner" style="display:none;">
-    <div class="panel">
-        <h3>⚙️ Configuración del Escáner</h3>
-        <p style="font-size:0.85rem;color:#64748b;margin-bottom:1rem;">
-            Define cómo se procesan los códigos escaneados.
-        </p>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:1rem;">
-
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escSoloNumerosLabel">
-                <input type="checkbox" id="escSoloNumeros" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-                <div style="flex:1;">
-                    <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">🔢 Solo números</div>
-                    <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Elimina letras y símbolos</div>
-                </div>
-            </label>
-
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escQuitarEspaciosLabel">
-                <input type="checkbox" id="escQuitarEspacios" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-                <div style="flex:1;">
-                    <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">⌴ Quitar espacios</div>
-                    <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Elimina espacios en blanco</div>
-                </div>
-            </label>
-
-<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escCortarHashLabel">
-    <input type="checkbox" id="escCortarHash" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-    <div style="flex:1;">
-        <div style="font-weight:700;color:#1e293b;font-size:0.9rem;"># Cortar antes de #</div>
-        <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Usa solo lo que viene DESPUÉS de #</div>
-    </div>
-</label>
-
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escQuitarComillasLabel">
-                <input type="checkbox" id="escQuitarComillas" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-                <div style="flex:1;">
-                    <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">" Quitar comillas</div>
-                    <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Elimina " y '</div>
-                </div>
-            </label>
-
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escQuitarGuionesLabel">
-                <input type="checkbox" id="escQuitarGuiones" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-                <div style="flex:1;">
-                    <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">- Quitar guiones</div>
-                    <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Elimina - y _</div>
-                </div>
-            </label>
-
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escMayusculasLabel">
-                <input type="checkbox" id="escMayusculas" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-                <div style="flex:1;">
-                    <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">ABC Mayúsculas</div>
-                    <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Convierte todo a MAYÚSCULAS</div>
-                </div>
-            </label>
-<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:14px;background:white;border:2px solid #cbd5e1;border-radius:10px;transition:all 0.15s ease;" id="escConservarGuionLabel">
-    <input type="checkbox" id="escConservarGuion" onchange="marcarConfigEscanerCambiada()" style="width:20px;height:20px;cursor:pointer;">
-    <div style="flex:1;">
-        <div style="font-weight:700;color:#1e293b;font-size:0.9rem;">🔒 Conservar si tiene guion</div>
-        <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Si contiene "-" se guarda tal cual sin procesar</div>
-    </div>
-</label>
-        </div>
-
-        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:1rem;">
-            <label style="display:block;font-size:0.85rem;font-weight:700;color:#1e293b;margin-bottom:6px;">
-                🏷️ Prefijos a eliminar
-            </label>
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-                <input type="text" id="escNuevoPrefijo" placeholder="Ej: BDM" maxlength="20" style="flex:1;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.85rem;font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();añadirPrefijoEscaner();}">
-                <button type="button" onclick="añadirPrefijoEscaner()" class="btn btn-primary btn-sm" style="padding:8px 14px;">➕ Añadir</button>
-            </div>
-            <div id="escListaPrefijos" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-        </div>
-
-        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:1rem;">
-            <label style="display:block;font-size:0.85rem;font-weight:700;color:#1e293b;margin-bottom:6px;">
-                📏 Longitud fija del código
-            </label>
-            <input type="number" id="escLongitud" min="0" max="100" placeholder="0 = sin límite" style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.85rem;font-family:inherit;" onchange="marcarConfigEscanerCambiada()">
-            <small style="color:#64748b;font-size:0.72rem;">Corta el código a esta longitud. 0 = sin límite.</small>
-        </div>
-
-        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px;margin-bottom:1rem;">
-            <div style="font-size:0.75rem;color:#4338ca;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:8px;">
-                👁️ Prueba de procesado
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <input type="text" id="escPruebaCodigo" placeholder="Pega un código de prueba aquí..." style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #c7d2fe;border-radius:8px;font-size:0.85rem;font-family:inherit;" oninput="probarConfigEscaner()">
-            </div>
-            <div id="escPruebaResultado" style="padding:10px 12px;background:white;border-radius:8px;font-family:'SF Mono',Monaco,monospace;font-size:0.85rem;color:#1e293b;border:1px solid #c7d2fe;min-height:38px;">
-                Esperando código...
-            </div>
-        </div>
-
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-success" onclick="guardarConfigEscaner()" style="flex:1;min-width:150px;padding:12px;">💾 Guardar configuración</button>
-            <button class="btn btn-outline" onclick="resetearConfigEscaner()" style="padding:12px 20px;">↺ Restaurar por defecto</button>
-        </div>
-
-        <div id="escEstadoGuardado" style="margin-top:10px;font-size:0.78rem;font-weight:700;text-align:center;"></div>
-    </div>
-</div>
-
-<div class="admin-panel" id="adminPanelRegistros" style="display:none;">
-    <div class="panel">
-        <h3>📋 Registros de Materiales</h3>
-        <p style="font-size:0.85rem;color:#64748b;margin-bottom:1rem;">
-            Todos los registros de resistencias y componentes escaneados.
-        </p>
-
-        <div style="display:flex;gap:8px;margin-bottom:1rem;border-bottom:2px solid #e5e7eb;flex-wrap:wrap;">
-            <button id="regTabResistencias" onclick="cambiarTabRegistros('resistencias')" style="padding:10px 18px;background:none;border:none;font-weight:700;font-size:0.85rem;cursor:pointer;color:#b45309;border-bottom:3px solid #f59e0b;margin-bottom:-2px;font-family:inherit;">
-                ⚡ Resistencias
-            </button>
-            <button id="regTabEscaneos" onclick="cambiarTabRegistros('escaneos')" style="padding:10px 18px;background:none;border:none;font-weight:700;font-size:0.85rem;cursor:pointer;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:inherit;">
-                📷 Componentes escaneados
-            </button>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <div style="flex:1;min-width:150px;">
-                <input type="text" id="regBusquedaGeneral" placeholder="🔍 Buscar por montaje, operario, lote o serie..." oninput="cambiarTabRegistros(window.APP._regTabActual || 'resistencias')" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-family:inherit;">
-            </div>
-            <select id="regFiltroOperario" onchange="cambiarTabRegistros(window.APP._regTabActual || 'resistencias')" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todos">👤 Todos</option>
-            </select>
-            <select id="regFiltroFecha" onchange="cambiarTabRegistros(window.APP._regTabActual || 'resistencias')" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todo">📅 Todo</option>
-                <option value="hoy">📅 Hoy</option>
-                <option value="semana">📅 7 días</option>
-                <option value="mes">📅 30 días</option>
-            </select>
-            <div id="regContador" style="font-size:0.78rem;color:#64748b;font-weight:600;white-space:nowrap;">0 registros</div>
-        </div>
-
-        <div id="regListaContenido" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="empty-state">⏳ Cargando...</div>
-        </div>
-    </div>
-</div>
-<div class="admin-panel" id="adminPanelTqc" style="display:none;">
-    <div class="panel">
-        <h3>🔍 Control de Calidad (TQC)</h3>
-        <p style="font-size:0.85rem;color:#64748b;margin-bottom:1rem;">
-            Revisa las estaciones completadas y aprueba o rechaza los montajes.
-        </p>
-
-        <div style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;">
-            <select id="tqcFiltroEstado" onchange="cargarTQC()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="pendiente">⏳ Pendientes</option>
-                <option value="parcial">🔄 Parcialmente rechazadas</option>
-                <option value="aprobado">✅ Aprobadas</option>
-                <option value="todas">📋 Todas</option>
-            </select>
-            <select id="tqcFiltroOperacion" onchange="cargarTQC()" style="padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:0.85rem;font-weight:600;color:#1e293b;background:white;cursor:pointer;font-family:inherit;">
-                <option value="todas">Todas las operaciones</option>
-            </select>
-            <div id="tqcContador" style="margin-left:auto;font-size:0.78rem;color:#64748b;font-weight:600;">0 estaciones</div>
-        </div>
-
-        <div id="tqcListaEstaciones" style="display:flex;flex-direction:column;gap:10px;">
-            <div class="empty-state">⏳ Cargando...</div>
-        </div>
-    </div>
-</div>
-
-        </div>
-
-    </main>
-</div>
-
-<button class="chat-fab" id="chatFab" onclick="event.stopPropagation(); togglePanelChatFlotante();" title="Abrir chat">
-    <i class="fas fa-comments"></i>
-</button>
-
-<div id="panelChatFlotante" style="
-    display:none;
-    position:fixed;
-    bottom:90px;
-    right:20px;
-    width:380px;
-    max-width:calc(100vw - 40px);
-    height:560px;
-    max-height:calc(100vh - 120px);
-    background:white;
-    border-radius:16px;
-    box-shadow:0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.05);
-    z-index:9500;
-    overflow:hidden;
-    flex-direction:column;
-    animation:slideUpPanel 0.25s ease-out;
-">
-    <div style="
-        background:linear-gradient(135deg,#2d74da,#1a365d);
-        color:white;
-        padding:12px 16px;
-        display:flex;
-        align-items:center;
-        gap:10px;
-        flex-shrink:0;
-        min-height:56px;
-    ">
-        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;" id="panelChatCabecera">
-            <span style="font-size:1.2rem;">💬</span>
-            <span style="font-weight:700;font-size:0.9rem;">Chat</span>
-        </div>
-        <button onclick="cerrarPanelChatFlotante()" style="
-            background:rgba(255,255,255,0.2);
-            border:none;
-            color:white;
-            width:32px;height:32px;
-            border-radius:8px;
-            font-size:1rem;
-            cursor:pointer;
-            display:flex;align-items:center;justify-content:center;
-            flex-shrink:0;
-        ">✕</button>
-    </div>
-
-    <div id="panelChatContenido" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
-    </div>
-</div>
-
-<div class="crono-badge" id="cronoBadgeFlotante" onclick="toggleBadgeCrono()" title="Pulsa para cambiar entre tiempo total y tiempo del montaje">
-    <span id="cronoBadgeIcono">⏱️</span>
-    <span id="cronoBadgeTiempo">0.00h</span>
-    <span id="cronoBadgeMontaje">-</span>
-    <span id="cronoBadgeOperarios" style="font-size:0.7rem;opacity:0.85;"></span>
-</div>
-
-<div class="crono-badge-ir" id="cronoBadgeIr" onclick="irAlMontajePropio()" title="Ir al montaje que tengo activo" style="display:none;">
-    <span>🎯</span>
-    <span>Ir al montaje</span>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
-<script src="js/01-config-estado.js?v=2"></script>
-<script src="js/02-firebase.js?v=2"></script>
-<script src="js/03-utilidades.js?v=2"></script>
-<script src="js/04-idgen.js?v=2"></script>
-<script src="js/05-auth.js?v=2"></script>
-<script src="js/06-navegacion.js?v=2"></script>
-<script src="js/07-listeners.js?v=2"></script>
-<script src="js/08-modales.js?v=2"></script>
-<script src="js/09-operaciones.js?v=2"></script>
-<script src="js/10-montajes.js?v=2"></script>
-<script src="js/11-estaciones.js?v=2"></script>
-<script src="js/12-cronometro.js?v=2"></script>
-<script src="js/13-badge-cronometro.js?v=2"></script>
-<script src="js/14-terminar-montaje.js?v=2"></script>
-<script src="js/15-dashboard.js?v=2"></script>
-<script src="js/16-operario-kanban.js?v=2"></script>
-<script src="js/17-operario-materiales.js?v=2"></script>
-<script src="js/18-operario-verificar-materiales.js?v=2"></script>
-<script src="js/19-operario-herramientas.js?v=2"></script>
-<script src="js/20-resistencias.js?v=2"></script>
-<script src="js/21-escaner-operario.js?v=2"></script>
-<script src="js/22-chat.js?v=2"></script>
-<script src="js/23-chat-panel.js?v=2"></script>
-<script src="js/24-notificaciones.js?v=2"></script>
-<script src="js/25-inspeccion.js?v=2"></script>
-<script src="js/30-admin-operarios.js?v=2"></script>
-<script src="js/31-admin-estaciones.js?v=2"></script>
-<script src="js/32-admin-operaciones.js?v=2"></script>
-<script src="js/33-admin-materiales.js?v=2"></script>
-<script src="js/34-admin-montajes.js?v=2"></script>
-<script src="js/35-admin-montajes-recursos.js?v=2"></script>
-<script src="js/36-admin-tornilleria.js?v=2"></script>
-<script src="js/37-admin-herramientas.js?v=2"></script>
-<script src="js/38-admin-piezas-kanban.js?v=2"></script>
-<script src="js/39-admin-movimientos-kanban.js?v=2"></script>
-<script src="js/40-alertas-kanban.js?v=2"></script>
-<script src="js/41-admin-entregas.js?v=2"></script>
-<script src="js/42-alertas-admin.js?v=2"></script>
-<script src="js/43-admin-registros.js?v=2"></script>
-<script src="js/44-admin-tqc.js?v=2"></script>
-<script src="js/45-admin-escaner-config.js?v=2"></script>
-<script src="js/46-pwa.js?v=1"></script>
-  <script src="js/90-exports.js?v=2"></script>
-<script src="js/99-init.js?v=2"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var pad = function (n) { return String(n).padStart(2, '0'); };
+  var DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
+  var ROLES = ['o1','o2','supervisor'];
+
+  function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function parseNum(s){
+    if (s===null||s===undefined) return NaN;
+    var t = String(s).trim().replace(/\s/g,'').replace(',','.');
+    if (!t) return NaN;
+    var n = Number(t);
+    return isFinite(n) ? n : NaN;
+  }
+  function parseTime(s){
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
+    if (!m) return null;
+    return { h: +m[1], m: +m[2] };
+  }
+  function fmtH(n){
+    if (n===null||n===undefined||!isFinite(n)) return '—';
+    var v = Math.round(n*100)/100, s = v.toFixed(2);
+    if (s.slice(-1)==='0') s = s.slice(0,-1);
+    if (s.slice(-1)==='0') s = s.slice(0,-1);
+    if (s.slice(-1)==='.') s = s.slice(0,-1);
+    return s.replace('.', ',') + ' h';
+  }
+  function fmtHReal(seg){
+    if (!isFinite(seg)||seg<0) seg = 0;
+    seg = Math.round(seg);
+    var h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60), s = seg%60;
+    var parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0 || h > 0) parts.push(m + 'm');
+    if (s > 0 || parts.length === 0) parts.push(s + 's');
+    return parts.join(' ');
+  }
+  function fmtCrono(seg){
+    if (!isFinite(seg)||seg<0) seg = 0;
+    seg = Math.floor(seg);
+    var h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60), s = seg%60;
+    return pad(h)+':'+pad(m)+':'+pad(s);
+  }
+  function fmtDur(seg){
+    seg = Math.round(seg);
+    if (seg <= 0) return '0m';
+    if (seg < 60) return seg + 's';
+    if (seg < 3600) return Math.floor(seg/60) + 'm';
+    if (seg < 86400) {
+      var h = Math.floor(seg/3600);
+      var m = Math.floor((seg%3600)/60);
+      return h + 'h ' + m + 'm';
+    }
+    var d = Math.floor(seg/86400);
+    var rem = seg % 86400;
+    var h2 = Math.floor(rem/3600);
+    var m2 = Math.floor((rem%3600)/60);
+    return d + 'd ' + h2 + 'h ' + m2 + 'm';
+  }
+  function fmtFechaISO(){
+    var d = new Date();
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function fmtFechaCorta(d){
+    return DIAS[d.getDay()] + ' ' + pad(d.getDate()) + '/' + pad(d.getMonth()+1);
+  }
+  function esMismoDia(a, b){
+    return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  }
+
+  var LS_KEY = 'cofres_aos_v1';
+  var state;
+  var editingId = null;
+
+  function defaultState(){
+    return {
+      objetivo: 139.86,
+      jornadaInicio: '06:45',
+      jornadaFin: '14:30',
+      alarma: {
+        activa: true,
+        minutos: 2,
+        duracion: 30,
+        vibracion: true
+      },
+      roles: {
+        o1: { nombre:'Operario 1', montajes: [] },
+        o2: { nombre:'Operario 2', montajes: [] },
+        supervisor: { nombre:'Supervisor (TQC)', montajes: [] }
+      },
+      activeRole: 'o1',
+      view: 'admin'
+    };
+  }
+  function save(){
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    catch(e){ console.warn('localStorage:', e); }
+  }
+  function load(){
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object' || !obj.roles) return null;
+      return obj;
+    } catch(e){ console.warn('localStorage:', e); return null; }
+  }
+  function normalizeMontaje(m){
+    if (!m || typeof m !== 'object') return null;
+    var h = parseNum(m.horasEstimadas);
+    var est = (m.estado==='curso'||m.estado==='pausado'||m.estado==='hecho') ? m.estado : 'pendiente';
+    var acum = Number(m.tiempoAcumulado);
+    var ini = Number(m.inicioReal);
+    var pi = Number(m.primerInicio);
+    return {
+      id: m.id ? String(m.id) : uid(),
+      nombre: (m.nombre===undefined||m.nombre===null||m.nombre==='') ? 'Montaje' : String(m.nombre),
+      horasEstimadas: isFinite(h)&&h>=0 ? h : 0,
+      estado: est,
+      tiempoAcumulado: isFinite(acum)&&acum>=0 ? acum : 0,
+      inicioReal: (isFinite(ini)&&ini>0) ? ini : null,
+      primerInicio: (isFinite(pi)&&pi>0) ? pi : null,
+      alertaDisparada: !!m.alertaDisparada
+    };
+  }
+  function mergeState(saved){
+    var base = defaultState();
+    if (!saved) return base;
+    var obj = Number(saved.objetivo);
+    if (isFinite(obj)&&obj>=0) base.objetivo = obj;
+    if (typeof saved.jornadaInicio === 'string' && parseTime(saved.jornadaInicio)) base.jornadaInicio = saved.jornadaInicio;
+    if (typeof saved.jornadaFin === 'string' && parseTime(saved.jornadaFin)) base.jornadaFin = saved.jornadaFin;
+
+    if (saved.alarma && typeof saved.alarma === 'object'){
+      if (typeof saved.alarma.activa === 'boolean') base.alarma.activa = saved.alarma.activa;
+      var min = Number(saved.alarma.minutos);
+      if (isFinite(min) && min > 0) base.alarma.minutos = min;
+      var dur = Number(saved.alarma.duracion);
+      if (isFinite(dur) && dur > 0) base.alarma.duracion = dur;
+      if (typeof saved.alarma.vibracion === 'boolean') base.alarma.vibracion = saved.alarma.vibracion;
+    }
+
+    ROLES.forEach(function(k){
+      var src = saved.roles ? saved.roles[k] : null;
+      if (!src) return;
+      if (typeof src.nombre === 'string' && src.nombre) base.roles[k].nombre = src.nombre;
+      if (Array.isArray(src.montajes)) {
+        base.roles[k].montajes = src.montajes.map(normalizeMontaje).filter(function(x){return !!x;});
+      }
+    });
+    if (saved.activeRole==='o1'||saved.activeRole==='o2'||saved.activeRole==='supervisor'){
+      base.activeRole = saved.activeRole;
+    }
+    if (saved.view === 'admin' || saved.view === 'operario') {
+      base.view = saved.view;
+    } else {
+      var total = 0;
+      ROLES.forEach(function(k){ total += base.roles[k].montajes.length; });
+      base.view = total === 0 ? 'admin' : 'operario';
+    }
+    return base;
+  }
+
+  /* =========================================================
+     CRONÓMETRO
+     ========================================================= */
+  function segundosDeMontaje(m){
+    if (m.estado==='curso' && m.inicioReal) {
+      return (m.tiempoAcumulado||0) + (Date.now() - m.inicioReal)/1000;
+    }
+    return m.tiempoAcumulado||0;
+  }
+  function segundosRealesRol(k){
+    var ms = state.roles[k].montajes, t = 0;
+    for (var i=0;i<ms.length;i++) t += segundosDeMontaje(ms[i]);
+    return t;
+  }
+  function totalEstimadoRol(k){
+    return state.roles[k].montajes.reduce(function(s,m){ return s + (Number(m.horasEstimadas)||0); }, 0);
+  }
+  function remainingSecondsRol(k){
+    var total = 0;
+    state.roles[k].montajes.forEach(function(m){
+      var estSeg = (m.horasEstimadas||0) * 3600;
+      var realSeg = segundosDeMontaje(m);
+      total += (estSeg - realSeg);
+    });
+    return Math.max(0, total);
+  }
+  function balanceSegundosRol(k){
+    var balance = 0;
+    state.roles[k].montajes.forEach(function(m){
+      if (m.estado === 'pendiente') return;
+      var estSeg = (m.horasEstimadas||0) * 3600;
+      var realSeg = segundosDeMontaje(m);
+      balance += (estSeg - realSeg);
+    });
+    return balance;
+  }
+  function primerInicioRol(k){
+    var min = null;
+    state.roles[k].montajes.forEach(function(m){
+      if (m.primerInicio && (min === null || m.primerInicio < min)) min = m.primerInicio;
+    });
+    return min;
+  }
+  function totalEstimadoGlobal(){
+    return ROLES.reduce(function(s,k){ return s + totalEstimadoRol(k); }, 0);
+  }
+  function totalRealGlobal(){
+    return ROLES.reduce(function(s,k){ return s + segundosRealesRol(k); }, 0);
+  }
+  function totalRemainingGlobal(){
+    return ROLES.reduce(function(s,k){ return s + remainingSecondsRol(k); }, 0);
+  }
+  function findMontaje(k,id){
+    var ms = state.roles[k].montajes;
+    for (var i=0;i<ms.length;i++) if (ms[i].id===id) return ms[i];
+    return null;
+  }
+  function enCursoEnRol(k){
+    var ms = state.roles[k].montajes;
+    for (var i=0;i<ms.length;i++) if (ms[i].estado==='curso') return ms[i];
+    return null;
+  }
+  function isOver(m){
+    if (m.estado === 'pendiente') return false;
+    var estSeg = (m.horasEstimadas||0) * 3600;
+    if (estSeg <= 0) return false;
+    return segundosDeMontaje(m) > estSeg + 1;
+  }
+  function overMinutes(m){
+    var estSeg = (m.horasEstimadas||0) * 3600;
+    return Math.max(0, Math.floor((segundosDeMontaje(m) - estSeg) / 60));
+  }
+  function estimatedEnd(m){
+    if (m.estado !== 'curso') return null;
+    var estSeg = (m.horasEstimadas||0) * 3600;
+    if (estSeg <= 0) return null;
+    var curSeg = segundosDeMontaje(m);
+    return new Date(Date.now() + (estSeg - curSeg) * 1000);
+  }
+
+  function computeEndDate(remainingSec){
+    if (remainingSec <= 0) return null;
+    var js = parseTime(state.jornadaInicio);
+    var je = parseTime(state.jornadaFin);
+    if (!js || !je) return null;
+    var cursor = new Date();
+    var rem = remainingSec;
+    var safety = 0;
+    while (rem > 0 && safety++ < 3000) {
+      var w = cursor.getDay();
+      if (w === 0 || w === 6) {
+        cursor.setDate(cursor.getDate() + 1);
+        cursor.setHours(js.h, js.m, 0, 0);
+        continue;
+      }
+      var dayStart = new Date(cursor); dayStart.setHours(js.h, js.m, 0, 0);
+      var dayEnd = new Date(cursor); dayEnd.setHours(je.h, je.m, 0, 0);
+      if (cursor.getTime() < dayStart.getTime()) cursor = new Date(dayStart);
+      if (cursor.getTime() >= dayEnd.getTime()) {
+        cursor.setDate(cursor.getDate() + 1);
+        cursor.setHours(js.h, js.m, 0, 0);
+        continue;
+      }
+      var avail = (dayEnd.getTime() - cursor.getTime()) / 1000;
+      if (avail >= rem) {
+        cursor = new Date(cursor.getTime() + rem * 1000);
+        rem = 0;
+      } else {
+        rem -= avail;
+        cursor.setDate(cursor.getDate() + 1);
+        cursor.setHours(js.h, js.m, 0, 0);
+      }
+    }
+    return cursor;
+  }
+
+  function formatFinDate(secRemaining){
+    if (secRemaining <= 0) return '—';
+    var end = computeEndDate(secRemaining);
+    if (!end) return '—';
+    if (esMismoDia(end, new Date())){
+      return 'hoy ' + pad(end.getHours()) + ':' + pad(end.getMinutes());
+    }
+    return fmtFechaCorta(end) + ' ' + pad(end.getHours()) + ':' + pad(end.getMinutes());
+  }
+
+  /* =========================================================
+     ALARMA
+     ========================================================= */
+  var audioCtx = null;
+  var alarmActive = false;
+  var alarmEndTimer = null;
+  var vibrateTimer = null;
+  var alarmOscillators = [];
+
+  function ensureAudio(){
+    if (!audioCtx){
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioCtx = new Ctx();
+      } catch(e){ console.warn('Sin audio:', e); }
+    }
+    if (audioCtx && audioCtx.state === 'suspended'){
+      audioCtx.resume().catch(function(){});
+    }
+  }
+
+  function playAlarmSound(durationSec){
+    ensureAudio();
+    if (!audioCtx) return;
+    var start = audioCtx.currentTime + 0.05;
+    var end = start + durationSec;
+    var t = start;
+    while (t < end - 0.4){
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.setValueAtTime(1180, t + 0.15);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.14, t + 0.02);
+      gain.gain.setValueAtTime(0.14, t + 0.28);
+      gain.gain.linearRampToValueAtTime(0, t + 0.34);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + 0.35);
+      alarmOscillators.push(osc);
+      t += 0.5;
+    }
+    setTimeout(function(){ alarmOscillators = []; }, durationSec * 1000 + 1000);
+  }
+
+  function startVibration(durationSec){
+    if (!navigator.vibrate) return;
+    var endTime = Date.now() + durationSec * 1000;
+    function chunk(){
+      if (!alarmActive) return;
+      if (Date.now() >= endTime){ navigator.vibrate(0); return; }
+      navigator.vibrate([400, 200, 400, 200]);
+      vibrateTimer = setTimeout(chunk, 1200);
+    }
+    chunk();
+  }
+
+  function triggerAlarm(montaje, opNombre){
+    if (alarmActive) return;
+    alarmActive = true;
+    ensureAudio();
+
+    var cfg = state.alarma;
+    var dur = Math.max(5, Math.min(120, Math.round(Number(cfg.duracion) || 30)));
+    var minUmbral = Number(cfg.minutos) || 2;
+
+    var banner = $('alarm-banner');
+    banner.hidden = false;
+    $('alarm-text').textContent = '⏰ ' + opNombre + ': ' + montaje.nombre +
+      ' — quedan menos de ' + minUmbral + ' min';
+
+    playAlarmSound(dur);
+    if (cfg.vibracion) startVibration(dur);
+
+    alarmEndTimer = setTimeout(stopAlarm, dur * 1000);
+  }
+
+  function stopAlarm(){
+    if (!alarmActive) return;
+    alarmActive = false;
+    if (alarmEndTimer){ clearTimeout(alarmEndTimer); alarmEndTimer = null; }
+    if (vibrateTimer){ clearTimeout(vibrateTimer); vibrateTimer = null; }
+    if (navigator.vibrate) navigator.vibrate(0);
+    for (var i=0;i<alarmOscillators.length;i++){
+      try { alarmOscillators[i].stop(); } catch(e){}
+    }
+    alarmOscillators = [];
+    var banner = $('alarm-banner');
+    if (banner) banner.hidden = true;
+  }
+
+  function checkAlarms(){
+    if (!state.alarma.activa) return;
+    var minutos = Number(state.alarma.minutos) || 2;
+    if (minutos <= 0) return;
+    var umbralSeg = minutos * 60;
+
+    ROLES.forEach(function(k){
+      var rol = state.roles[k];
+      rol.montajes.forEach(function(m){
+        if (m.estado !== 'curso') return;
+        if (m.alertaDisparada) return;
+        var estSeg = (m.horasEstimadas||0) * 3600;
+        if (estSeg <= 0) return;
+        var realSeg = segundosDeMontaje(m);
+        var restante = estSeg - realSeg;
+        if (restante > 0 && restante <= umbralSeg){
+          m.alertaDisparada = true;
+          if (!alarmActive){
+            triggerAlarm(m, rol.nombre);
+          }
+        }
+      });
+    });
+  }
+
+  /* =========================================================
+     ACCIONES
+     ========================================================= */
+  function iniciar(k,id){
+    var m = findMontaje(k,id);
+    if (!m || (m.estado!=='pendiente' && m.estado!=='pausado')) return;
+    ensureAudio();
+    var otro = enCursoEnRol(k);
+    if (otro && otro.id!==id){
+      otro.tiempoAcumulado = segundosDeMontaje(otro);
+      otro.inicioReal = null;
+      otro.estado = 'pausado';
+    }
+    if (!m.primerInicio) m.primerInicio = Date.now();
+    m.inicioReal = Date.now();
+    m.estado = 'curso';
+    save(); render();
+  }
+  function pausar(k,id){
+    var m = findMontaje(k,id);
+    if (!m || m.estado!=='curso') return;
+    m.tiempoAcumulado = segundosDeMontaje(m);
+    m.inicioReal = null;
+    m.estado = 'pausado';
+    stopAlarm();
+    save(); render();
+  }
+  function terminar(k,id){
+    var m = findMontaje(k,id);
+    if (!m) return;
+    if (m.estado==='curso') m.tiempoAcumulado = segundosDeMontaje(m);
+    m.inicioReal = null;
+    m.estado = 'hecho';
+    stopAlarm();
+    save(); render();
+  }
+  function reabrir(k,id){
+    var m = findMontaje(k,id);
+    if (!m || m.estado!=='hecho') return;
+    m.estado = 'pausado';
+    m.alertaDisparada = false;
+    save(); render();
+  }
+  function borrar(k,id){
+    var arr = state.roles[k].montajes;
+    for (var i=0;i<arr.length;i++){ if (arr[i].id===id){ arr.splice(i,1); break; } }
+    save(); render();
+  }
+  function saveEdit(id){
+    var m = findMontaje(state.activeRole, id);
+    if (!m) return;
+    var nombreEl = document.querySelector('[data-edit-nombre]');
+    var horasEl = document.querySelector('[data-edit-horas]');
+    if (!nombreEl || !horasEl) return;
+    var nombre = nombreEl.value.trim() || 'Montaje';
+    var horas = parseNum(horasEl.value);
+    if (!isFinite(horas) || horas < 0) {
+      horasEl.focus();
+      horasEl.style.borderColor = 'var(--bad)';
+      setTimeout(function(){ horasEl.style.borderColor = ''; }, 1400);
+      return;
+    }
+    var oldH = m.horasEstimadas;
+    m.nombre = nombre;
+    m.horasEstimadas = Math.round(horas * 100) / 100;
+    if (m.horasEstimadas !== oldH) m.alertaDisparada = false;
+    editingId = null;
+    save(); render();
+  }
+
+  /* =========================================================
+     RENDERIZADO
+     ========================================================= */
+  function stat(k,v){ return '<div class="stat"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+
+  function renderObjetivo(){
+    var o = Number(state.objetivo);
+    if (!isFinite(o)||o<0) o = 0;
+    var est = totalEstimadoGlobal();
+    var pct = o>0 ? Math.min(100, (est/o)*100) : (est>0?100:0);
+    var over = est > o + 1e-9;
+    $('prog-est').textContent = fmtH(est) + ' / ' + fmtH(o);
+    $('prog-pct').textContent = Math.round(pct) + '%';
+    var bar = $('prog-bar');
+    bar.firstElementChild.style.width = pct + '%';
+    bar.classList.toggle('over', over);
+    $('objetivo-alert').innerHTML = over
+      ? '<div class="alert bad">⚠ El estimado supera el objetivo en ' + fmtH(est-o) + '.</div>'
+      : '';
+  }
+
+  function renderTabs(){
+    var tabs = document.querySelectorAll('.tab');
+    for (var i=0;i<tabs.length;i++){
+      var tab = tabs[i];
+      var role = tab.getAttribute('data-role');
+      if (!role) continue;
+      tab.classList.toggle('active', role===state.activeRole);
+      var dot = tab.querySelector('.dot');
+      var enCurso = !!enCursoEnRol(role);
+      if (enCurso && !dot){
+        var s = document.createElement('span'); s.className = 'dot'; tab.appendChild(s);
+      } else if (!enCurso && dot){ dot.remove(); }
+    }
+  }
+
+  function renderRoleStats(){
+    var k = state.activeRole;
+    var rol = state.roles[k];
+    $('op-role-title').textContent = rol.nombre;
+
+    var ms = rol.montajes;
+    var hechos = ms.filter(function(m){return m.estado==='hecho';}).length;
+    var pend = ms.filter(function(m){return m.estado==='pendiente';}).length;
+    var enCurso = enCursoEnRol(k);
+    var estTotal = totalEstimadoRol(k);
+    var realTotal = segundosRealesRol(k);
+
+    $('op-role-stats').innerHTML =
+      stat('Montajes', String(ms.length)) +
+      stat('Hechos', String(hechos)) +
+      stat('Pendientes', String(pend)) +
+      stat('Estimado', fmtH(estTotal) + ' <span style="font-size:.75rem;font-weight:600;color:var(--muted)">- ' + fmtCrono(estTotal*3600) + '</span>') +
+      stat('Tiempo real', '<span data-live-real="' + k + '">' + fmtCrono(realTotal) + '</span>') +
+      (enCurso ? stat('En curso', esc(enCurso.nombre)) : stat('En curso', '—'));
+  }
+
+  function renderRoleTime(){
+    var k = state.activeRole;
+
+    var pi = primerInicioRol(k);
+    var piEl = $('op-primer-inicio');
+    var piSub = $('op-primer-inicio-sub');
+    if (pi === null){
+      piEl.textContent = '—';
+      piSub.textContent = 'Ningún montaje iniciado';
+    } else {
+      var d = new Date(pi);
+      piEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+      piSub.textContent = esMismoDia(d, new Date()) ? 'hoy' : fmtFechaCorta(d);
+    }
+
+    var est = totalEstimadoRol(k);
+    var real = segundosRealesRol(k);
+    var trEl = $('op-trabajo-real');
+    var trSub = $('op-trabajo-real-sub');
+    trEl.textContent = fmtHReal(real);
+    trSub.textContent = 'de ' + fmtH(est) + ' estimadas';
+
+    var balance = balanceSegundosRol(k);
+    var ahBox = $('op-ahorro-box');
+    var ahTitulo = ahBox.querySelector('.k');
+    if (Math.abs(balance) >= 30){
+      ahBox.hidden = false;
+      var esExceso = balance < 0;
+      var absSeg = Math.abs(balance);
+      ahTitulo.textContent = esExceso ? 'Excedido' : 'Ahorro';
+      ahBox.classList.toggle('ahorro', !esExceso);
+      ahBox.classList.toggle('excedido', esExceso);
+      $('op-ahorro').innerHTML = fmtH(absSeg/3600) +
+        ' <span style="font-size:.75rem;font-weight:600;color:var(--muted)">- ' +
+        fmtCrono(absSeg) + '</span>';
+      $('op-ahorro-sub').textContent = 'en montajes hechos';
+    } else {
+      ahBox.hidden = true;
+    }
+
+    var rem = remainingSecondsRol(k);
+    if (!isFinite(rem) || rem < 0) rem = 0;
+
+    var qEl = $('op-quedan-tiempo');
+    var qFecha = $('op-quedan-fecha');
+
+    if (state.roles[k].montajes.length === 0){
+      qEl.textContent = '—';
+      qFecha.textContent = 'Sin montajes';
+    } else if (rem <= 0){
+      qEl.textContent = 'Todo hecho';
+      qFecha.textContent = '';
+    } else {
+      qEl.innerHTML = fmtH(rem/3600) +
+        ' <span style="font-size:.75rem;font-weight:600;color:var(--muted)">- ' +
+        fmtCrono(rem) + '</span>';
+      qFecha.textContent = 'Fin: ' + formatFinDate(rem);
+    }
+  }
+
+  function fechasLine(m){
+    var estSeg = (m.horasEstimadas||0) * 3600;
+    var startStr = m.primerInicio ? (function(){
+      var d = new Date(m.primerInicio);
+      return pad(d.getHours()) + ':' + pad(d.getMinutes());
+    })() : null;
+    var over = isOver(m);
+    var overMin = over ? overMinutes(m) : 0;
+
+    if (m.estado === 'pendiente'){
+      if (estSeg <= 0) return '';
+      var end = new Date(Date.now() + estSeg * 1000);
+      var endStr = pad(end.getHours()) + ':' + pad(end.getMinutes());
+      return 'Si lo empiezas ahora: <b>' + endStr + '</b>';
+    }
+    if (m.estado === 'curso'){
+      var end = estimatedEnd(m);
+      var endStr = end ? pad(end.getHours()) + ':' + pad(end.getMinutes()) : '—';
+      var badge = over ? ' <span class="badge-over">+' + overMin + 'm</span>' : '';
+      return 'Inicio <b>' + (startStr || '—') + '</b> → Est. fin <b>' + endStr + '</b>' + badge;
+    }
+    if (m.estado === 'pausado'){
+      var badge = over ? ' <span class="badge-over">+' + overMin + 'm</span>' : '';
+      return 'Inicio <b>' + (startStr || '—') + '</b> · En pausa' + badge;
+    }
+    if (m.estado === 'hecho'){
+      var real = fmtCrono(segundosDeMontaje(m));
+      var diff = '';
+      if (over){
+        diff = ' <span class="bad-text">(+' + overMin + 'm)</span>';
+      } else if (estSeg > 0){
+        var ganado = Math.floor((estSeg - segundosDeMontaje(m))/60);
+        if (ganado > 0) diff = ' <span class="warn-text">(−' + ganado + 'm)</span>';
+      }
+      return 'Inicio <b>' + (startStr || '—') + '</b> · Real ' + real + diff;
+    }
+    return '';
+  }
+
+  function adminDisplayRow(m){
+    var estH = m.horasEstimadas || 0;
+    var estRealTxt = estH > 0 ? fmtH(estH) + ' - ' + fmtCrono(estH*3600) : 'Sin estimación';
+    var estadoLabel = { pendiente:'Pendiente', curso:'En curso', pausado:'En pausa', hecho:'Hecho' }[m.estado] || m.estado;
+    var cronoTxt = m.estado !== 'pendiente' ? fmtCrono(segundosDeMontaje(m)) : '';
+    var alertaBadge = (m.alertaDisparada && m.estado === 'curso')
+      ? ' <span class="badge-alerta">⏰ AVISO</span>' : '';
+
+    return '<li class="montaje ' + m.estado + (isOver(m)?' over':'') + '">' +
+      '<div class="m-main">' +
+        '<div class="m-row1">' +
+          '<div class="m-nombre">' + esc(m.nombre) +
+            ' <span class="badge-estado ' + m.estado + '">' + estadoLabel + '</span>' +
+            alertaBadge +
+          '</div>' +
+          (cronoTxt ? '<div class="m-crono">' + cronoTxt + '</div>' : '') +
+        '</div>' +
+        '<div class="m-horas">' + estRealTxt + '</div>' +
+        '<div class="m-fechas">' + fechasLine(m) + '</div>' +
+      '</div>' +
+      '<div class="m-acciones">' +
+        '<button type="button" class="btn-mini" data-act="edit" data-id="' + esc(m.id) + '" aria-label="Editar">✏</button>' +
+        '<button type="button" class="btn-mini danger" data-act="del" data-id="' + esc(m.id) + '" aria-label="Borrar">×</button>' +
+      '</div>' +
+    '</li>';
+  }
+  function adminEditRow(m){
+    return '<li class="montaje editing">' +
+      '<div class="admin-edit-inputs">' +
+        '<input type="text" data-edit-nombre value="' + esc(m.nombre) + '" placeholder="Nombre" maxlength="80">' +
+        '<input type="text" data-edit-horas inputmode="decimal" value="' + String(m.horasEstimadas || 0).replace('.', ',') + '" placeholder="Horas (0,56)">' +
+      '</div>' +
+      '<div class="m-acciones">' +
+        '<button type="button" class="btn-mini" data-act="save-edit" data-id="' + esc(m.id) + '" aria-label="Guardar">✓</button>' +
+        '<button type="button" class="btn-mini" data-act="cancel-edit" data-id="' + esc(m.id) + '" aria-label="Cancelar">✕</button>' +
+      '</div>' +
+    '</li>';
+  }
+  function renderAdminList(){
+    var k = state.activeRole;
+    var rol = state.roles[k];
+    $('admin-role-title').textContent = rol.nombre;
+
+    var ms = rol.montajes;
+    var listEl = $('admin-list');
+    if (!ms.length){
+      listEl.innerHTML = '<li class="muted">No hay montajes en este rol. Añade el primero justo debajo.</li>';
+      return;
+    }
+    var html = '';
+    ms.forEach(function(m){
+      html += (editingId === m.id) ? adminEditRow(m) : adminDisplayRow(m);
+    });
+    listEl.innerHTML = html;
+  }
+
+  function renderOperatorList(){
+    var k = state.activeRole;
+    var rol = state.roles[k];
+    var ms = rol.montajes;
+
+    var listEl = $('op-list');
+    if (!ms.length){
+      listEl.innerHTML = '<li class="muted">No hay montajes en este rol. Ve a Admin para añadirlos.</li>';
+      $('op-role-alert').innerHTML = '';
+      return;
+    }
+
+    var html = '';
+    ms.forEach(function(m){
+      var cls = 'montaje ' + m.estado + (isOver(m)?' over':'');
+      var btn = '', acciones = '', cronoTxt = '— — —';
+      var cronoAttr = '';
+      var fechasAttr = '';
+      var alertaBadge = (m.alertaDisparada && m.estado === 'curso')
+        ? ' <span class="badge-alerta">⏰</span>' : '';
+
+      if (m.estado === 'pendiente'){
+        btn = '<button type="button" class="btn-play" data-act="start" data-id="'+esc(m.id)+'" aria-label="Iniciar">▶</button>';
+      } else if (m.estado === 'curso'){
+        btn = '<button type="button" class="btn-play pause" data-act="pause" data-id="'+esc(m.id)+'" aria-label="Pausar">⏸</button>';
+        cronoTxt = fmtCrono(segundosDeMontaje(m));
+        cronoAttr = ' data-live="' + esc(m.id) + '"';
+        fechasAttr = ' data-live-fechas="' + esc(m.id) + '"';
+        acciones = '<button type="button" class="btn-mini" data-act="stop" data-id="'+esc(m.id)+'">⏹</button>';
+      } else if (m.estado === 'pausado'){
+        btn = '<button type="button" class="btn-play" data-act="start" data-id="'+esc(m.id)+'" aria-label="Reanudar">▶</button>';
+        cronoTxt = fmtCrono(segundosDeMontaje(m));
+        acciones = '<button type="button" class="btn-mini" data-act="stop" data-id="'+esc(m.id)+'">⏹</button>';
+      } else if (m.estado === 'hecho'){
+        btn = '<button type="button" class="btn-play reopen" data-act="reopen" data-id="'+esc(m.id)+'" aria-label="Reabrir">↺</button>';
+        cronoTxt = fmtCrono(segundosDeMontaje(m));
+      }
+
+      var estH = m.horasEstimadas || 0;
+      var estRealTxt = estH > 0 ? fmtH(estH) + ' - ' + fmtCrono(estH*3600) + ' estimadas' : 'Sin estimación';
+
+      html += '<li class="' + cls + '" data-mid="' + esc(m.id) + '">' + btn +
+        '<div class="m-main">' +
+          '<div class="m-row1">' +
+            '<div class="m-nombre">' + esc(m.nombre) + alertaBadge + '</div>' +
+            '<div class="m-crono"' + cronoAttr + '>' + cronoTxt + '</div>' +
+          '</div>' +
+          '<div class="m-horas">' + estRealTxt + '</div>' +
+          '<div class="m-fechas"' + fechasAttr + '>' + fechasLine(m) + '</div>' +
+        '</div>' +
+        '<div class="m-acciones">' + acciones + '</div>' +
+      '</li>';
+    });
+    listEl.innerHTML = html;
+
+    var desviados = ms.filter(function(m){
+      return m.estado==='hecho' && m.horasEstimadas>0 &&
+             segundosDeMontaje(m)/3600 > m.horasEstimadas*1.25;
+    });
+    $('op-role-alert').innerHTML = desviados.length
+      ? '<div class="alert bad">⚠ ' + desviados.length + ' montaje(s) hecho(s) con tiempo real un 25% por encima del estimado.</div>'
+      : '';
+  }
+
+  function renderResumenOperarios(){
+    var el = $('op-resumen-global');
+    var html = '';
+
+    html += '<div class="res-grid head">' +
+      '<span>Operario</span>' +
+      '<span class="rg-right rg-col-hide-sm">Estimado</span>' +
+      '<span class="rg-right">Trabajo real</span>' +
+      '<span class="rg-right">Quedan</span>' +
+      '<span class="rg-right rg-col-hide-sm">Fin previsto</span>' +
+    '</div>';
+
+    ROLES.forEach(function(k){
+      var rol = state.roles[k];
+      var est = totalEstimadoRol(k);
+      var real = segundosRealesRol(k);
+      var rem = remainingSecondsRol(k);
+      var tiene = rol.montajes.length > 0;
+      html += '<div class="res-grid">' +
+        '<span class="rg-name">' + esc(rol.nombre) + '</span>' +
+        '<span class="rg-mono rg-col-hide-sm">' + fmtH(est) + '</span>' +
+        '<span class="rg-mono">' + fmtCrono(real) + '</span>' +
+        '<span class="rg-mono">' + (tiene ? (rem > 0 ? fmtDur(rem) : 'Hecho') : '—') + '</span>' +
+        '<span class="rg-mono rg-col-hide-sm">' + (tiene ? formatFinDate(rem) : '—') + '</span>' +
+      '</div>';
+    });
+
+    var estG = totalEstimadoGlobal();
+    var realG = totalRealGlobal();
+    var remG = totalRemainingGlobal();
+    var tieneG = false;
+    ROLES.forEach(function(k){ if (state.roles[k].montajes.length > 0) tieneG = true; });
+
+    html += '<div class="res-grid total">' +
+      '<span class="rg-name">Total</span>' +
+      '<span class="rg-mono rg-col-hide-sm">' + fmtH(estG) + '</span>' +
+      '<span class="rg-mono">' + fmtCrono(realG) + '</span>' +
+      '<span class="rg-mono">' + (tieneG ? (remG > 0 ? fmtDur(remG) : 'Hecho') : '—') + '</span>' +
+      '<span class="rg-mono rg-col-hide-sm">' + (tieneG ? formatFinDate(remG) : '—') + '</span>' +
+    '</div>';
+
+    el.innerHTML = html;
+  }
+
+  function renderResumenAdmin(){
+    var el = $('resumen');
+    var html = '';
+    ROLES.forEach(function(k){
+      var rol = state.roles[k];
+      var est = totalEstimadoRol(k);
+      var realSeg = segundosRealesRol(k);
+      var rem = remainingSecondsRol(k);
+      html += '<div class="res-row">' +
+        '<span class="r-name">' + esc(rol.nombre) + '</span>' +
+        '<span class="r-vals">' + fmtCrono(realSeg) +
+          '<small>' + fmtH(est) + ' est · ' + (rem > 0 ? fmtDur(rem) + ' pend.' : 'hecho') + '</small>' +
+        '</span>' +
+      '</div>';
+    });
+    var estG = totalEstimadoGlobal();
+    var objG = Number(state.objetivo) || 0;
+    var over = estG > objG + 1e-9;
+    html += '<div class="res-row total' + (over ? ' bad' : '') + '">' +
+      '<span class="r-name">Total estimado</span>' +
+      '<span class="r-vals">' + fmtH(estG) + '<small>objetivo ' + fmtH(objG) + '</small></span>' +
+    '</div>';
+    var sinAsignar = objG - estG;
+    var neg = sinAsignar < -1e-9;
+    html += '<div class="res-row' + (neg ? ' bad' : '') + '">' +
+      '<span class="r-name">Sin asignar</span>' +
+      '<span class="r-vals">' + fmtH(sinAsignar) + '</span>' +
+    '</div>';
+    el.innerHTML = html;
+  }
+
+  function render(){
+    var adminView = $('view-admin');
+    var operarioView = $('view-operario');
+    adminView.hidden = state.view !== 'admin';
+    operarioView.hidden = state.view !== 'operario';
+
+    var btns = document.querySelectorAll('.main-btn');
+    for (var i=0;i<btns.length;i++){
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === state.view);
+    }
+
+    renderTabs();
+
+    if (state.view === 'admin'){
+      renderObjetivo();
+      renderAdminList();
+      renderResumenAdmin();
+    } else {
+      renderRoleStats();
+      renderRoleTime();
+      renderOperatorList();
+      renderResumenOperarios();
+    }
+  }
+
+  var tickTimer = null;
+  function tick(){
+    /* Alarma: comprobar todos los roles SIEMPRE */
+    checkAlarms();
+
+    if (state.view !== 'operario') return;
+
+    /* Crono vivo arriba */
+    var lr = document.querySelector('[data-live-real="' + state.activeRole + '"]');
+    if (lr) lr.textContent = fmtCrono(segundosRealesRol(state.activeRole));
+
+    /* Ahorro/Excedido en vivo */
+    var rb = balanceSegundosRol(state.activeRole);
+    var ahBox = $('op-ahorro-box');
+    if (ahBox){
+      var absSeg = Math.abs(rb);
+      if (absSeg >= 30){
+        ahBox.hidden = false;
+        var esExceso = rb < 0;
+        ahBox.querySelector('.k').textContent = esExceso ? 'Excedido' : 'Ahorro';
+        ahBox.classList.toggle('ahorro', !esExceso);
+        ahBox.classList.toggle('excedido', esExceso);
+        $('op-ahorro').innerHTML = fmtH(absSeg/3600) +
+          ' <span style="font-size:.75rem;font-weight:600;color:var(--muted)">- ' +
+          fmtCrono(absSeg) + '</span>';
+      } else {
+        ahBox.hidden = true;
+      }
+    }
+
+    /* Quedan en vivo */
+    renderRoleTime();
+
+    /* Crono de cada montaje en curso */
+    var ms = state.roles[state.activeRole].montajes;
+    for (var i=0;i<ms.length;i++){
+      var m = ms[i];
+      if (m.estado === 'curso'){
+        var crono = document.querySelector('[data-live="' + m.id + '"]');
+        if (crono) crono.textContent = fmtCrono(segundosDeMontaje(m));
+        var fechas = document.querySelector('[data-live-fechas="' + m.id + '"]');
+        if (fechas) fechas.innerHTML = fechasLine(m);
+        var li = document.querySelector('[data-mid="' + m.id + '"]');
+        if (li) li.classList.toggle('over', isOver(m));
+      }
+    }
+    renderResumenOperarios();
+  }
+  function startTick(){ if (!tickTimer) tickTimer = setInterval(tick, 1000); }
+
+  /* ================= EVENTOS ================= */
+  $('main-nav').addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    state.view = btn.getAttribute('data-view');
+    save(); render();
+  });
+
+  var tabNavs = document.querySelectorAll('.tabs');
+  for (var ti=0; ti<tabNavs.length; ti++){
+    tabNavs[ti].addEventListener('click', function(e){
+      var btn = e.target.closest('button[data-role]');
+      if (!btn) return;
+      state.activeRole = btn.getAttribute('data-role');
+      editingId = null;
+      save(); render();
+    });
+  }
+
+  $('objetivo').addEventListener('input', function(){
+    var v = parseNum(this.value);
+    state.objetivo = isFinite(v)&&v>=0 ? v : 0;
+    save(); renderObjetivo(); renderResumenAdmin();
+  });
+  $('objetivo').addEventListener('change', function(){
+    var v = parseNum(this.value);
+    state.objetivo = isFinite(v)&&v>=0 ? v : 0;
+    this.value = String(state.objetivo).replace('.', ',');
+    save(); renderObjetivo(); renderResumenAdmin();
+  });
+
+  $('jornada-inicio').addEventListener('change', function(){
+    if (parseTime(this.value)) { state.jornadaInicio = this.value; save(); }
+  });
+  $('jornada-fin').addEventListener('change', function(){
+    if (parseTime(this.value)) { state.jornadaFin = this.value; save(); }
+  });
+
+  /* Alarma - controles en admin */
+  $('alarma-activa').addEventListener('change', function(){
+    state.alarma.activa = this.checked;
+    if (!this.checked) stopAlarm();
+    save();
+  });
+  $('alarma-minutos').addEventListener('change', function(){
+    var v = parseNum(this.value);
+    if (isFinite(v) && v > 0) state.alarma.minutos = v;
+    else state.alarma.minutos = 2;
+    this.value = String(state.alarma.minutos).replace('.', ',');
+    save();
+  });
+  $('alarma-duracion').addEventListener('change', function(){
+    var v = parseNum(this.value);
+    if (isFinite(v) && v > 0) state.alarma.duracion = Math.round(v);
+    else state.alarma.duracion = 30;
+    this.value = String(state.alarma.duracion);
+    save();
+  });
+  $('alarma-vibracion').addEventListener('change', function(){
+    state.alarma.vibracion = this.checked;
+    save();
+  });
+  $('btn-test-alarma').addEventListener('click', function(){
+    ensureAudio();
+    triggerAlarm(
+      { nombre: '(prueba)' },
+      'Prueba'
+    );
+  });
+  $('btn-stop-alarma').addEventListener('click', stopAlarm);
+  $('alarm-stop').addEventListener('click', stopAlarm);
+
+  $('admin-list').addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var act = btn.getAttribute('data-act');
+    var id = btn.getAttribute('data-id');
+    if (act === 'edit'){
+      editingId = id; render();
+    } else if (act === 'cancel-edit'){
+      editingId = null; render();
+    } else if (act === 'save-edit'){
+      saveEdit(id);
+    } else if (act === 'del'){
+      if (confirm('¿Borrar este montaje?')) borrar(state.activeRole, id);
+    }
+  });
+
+  $('form-add').addEventListener('submit', function(e){
+    e.preventDefault();
+    var nEl = $('add-nombre'), hEl = $('add-horas');
+    var nombre = nEl.value.trim();
+    var horas = parseNum(hEl.value);
+    if (!isFinite(horas)||horas<0){
+      hEl.focus(); hEl.style.borderColor='var(--bad)';
+      setTimeout(function(){ hEl.style.borderColor=''; }, 1400);
+      return;
+    }
+    if (!nombre){
+      var n = state.roles[state.activeRole].montajes.length + 1;
+      nombre = 'Montaje ' + n;
+    }
+    state.roles[state.activeRole].montajes.push({
+      id: uid(), nombre: nombre,
+      horasEstimadas: Math.round(horas*100)/100,
+      estado: 'pendiente', tiempoAcumulado: 0, inicioReal: null, primerInicio: null,
+      alertaDisparada: false
+    });
+    nEl.value=''; hEl.value='';
+    save(); render(); nEl.focus();
+  });
+
+  $('op-list').addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var act = btn.getAttribute('data-act');
+    var id = btn.getAttribute('data-id');
+    var k = state.activeRole;
+    if (act==='start') iniciar(k,id);
+    else if (act==='pause') pausar(k,id);
+    else if (act==='stop') terminar(k,id);
+    else if (act==='reopen') reabrir(k,id);
+  });
+
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) tick();
+  });
+
+  function showDataAlert(msg, kind){
+    var el = $('data-alert');
+    el.innerHTML = '<div class="alert ' + (kind||'') + '">' + esc(msg) + '</div>';
+    setTimeout(function(){ el.innerHTML = ''; }, 4500);
+  }
+  $('btn-export').addEventListener('click', function(){
+    try {
+      var blob = new Blob([JSON.stringify(state, null, 2)], {type: 'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'cofres-backup-' + fmtFechaISO() + '.json';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+      showDataAlert('Copia descargada. Guárdala en Drive o donde quieras.', 'ok');
+    } catch(err){ showDataAlert('No se pudo exportar: ' + err.message, 'bad'); }
+  });
+  $('btn-import-trigger').addEventListener('click', function(){ $('file-import').click(); });
+  $('file-import').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try {
+        var obj = JSON.parse(ev.target.result);
+        if (!obj || typeof obj !== 'object' || !obj.roles){
+          showDataAlert('El archivo no parece un backup válido.', 'bad'); return;
+        }
+        if (!confirm('¿Reemplazar TODOS los datos actuales con los del backup?')) return;
+        state = mergeState(obj);
+        editingId = null;
+        save();
+        fillInputs();
+        render();
+        showDataAlert('Copia importada correctamente.', 'ok');
+      } catch(err){ showDataAlert('No se pudo leer el archivo: ' + err.message, 'bad'); }
+    };
+    reader.onerror = function(){ showDataAlert('Error al leer el archivo.', 'bad'); };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  function fillInputs(){
+    $('objetivo').value = String(state.objetivo).replace('.', ',');
+    $('jornada-inicio').value = state.jornadaInicio || '06:45';
+    $('jornada-fin').value = state.jornadaFin || '14:30';
+    $('alarma-activa').checked = !!state.alarma.activa;
+    $('alarma-minutos').value = String(state.alarma.minutos || 2).replace('.', ',');
+    $('alarma-duracion').value = String(state.alarma.duracion || 30);
+    $('alarma-vibracion').checked = !!state.alarma.vibracion;
+  }
+
+  state = mergeState(load());
+  fillInputs();
+  render();
+  startTick();
+
+})();
+</script>
 </body>
 </html>
