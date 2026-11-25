@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#1f6feb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Control personal de tiempo</title>
+<style>
+  :root{
+    color-scheme: light dark;
+    --bg:#eef1f6; --card:#ffffff; --text:#111a24; --muted:#5a6b80;
+    --border:#d7dfe9; --primary:#1f6feb; --on-primary:#ffffff;
+    --ok:#0b7a43; --ok-bg:#e3f7ec; --warn:#b45309; --warn-bg:#fef3c7;
+    --bad:#c62828; --bad-bg:#fdeaea;
+    --ms3:#7c3aed; --ms3-bg:#ede9fe;
+    --dc3:#0891b2; --dc3-bg:#cffafe;
+    --shadow:0 1px 2px rgba(16,24,40,.06), 0 4px 14px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d1218; --card:#151c25; --text:#e8eef6; --muted:#9aacbf;
+      --border:#27323f; --primary:#3b82f6;
+      --ok:#4ade80; --ok-bg:#0d2b1c; --warn:#fbbf24; --warn-bg:#3b2a0c;
+      --bad:#ff7b72; --bad-bg:#2e1517;
+      --ms3:#a78bfa; --ms3-bg:#2e1f4d;
+      --dc3:#22d3ee; --dc3-bg:#0e3a44;
+      --shadow:0 1px 2px rgba(0,0,0,.5);
+    }
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; padding:12px 12px calc(48px + env(safe-area-inset-bottom));
+    background:var(--bg); color:var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size:16px; line-height:1.45;
+  }
+  .app{ max-width:1000px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  .head h1{ font-size:1.3rem; margin:0; letter-spacing:-.01em; }
+  .head .sub{ margin:2px 0 0; color:var(--muted); font-size:.88rem; }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; box-shadow:var(--shadow); }
+  .card h2{ font-size:1.02rem; margin:0 0 12px; letter-spacing:-.01em; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(148px, 1fr)); gap:10px; }
+  label.field{ display:flex; flex-direction:column; gap:5px; font-size:.76rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--muted); }
+  input[type="text"], input[type="password"], input[type="time"], select{
+    font:inherit; font-size:1rem; font-weight:500; padding:11px 12px; border-radius:11px;
+    border:1px solid var(--border); background:var(--card); color:var(--text);
+    width:100%; -webkit-appearance:none; appearance:none;
+  }
+  select{ background-image:linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position:calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size:5px 5px, 5px 5px; background-repeat:no-repeat; padding-right:34px; }
+  input:focus-visible, button:focus-visible, select:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; }
+  .hint{ margin:10px 0 0; font-size:.82rem; color:var(--muted); }
+  .alert{ padding:11px 13px; border-radius:11px; font-weight:700; font-size:.9rem; border:1px solid var(--border); background:var(--bg); color:var(--text); margin:12px 0 0; }
+  .alert.ok{ background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
+  .alert.bad{ background:var(--bad-bg); color:var(--bad); border-color:var(--bad); }
+  .alert.warn{ background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  .alert:empty{ display:none; }
+
+  #loading-screen {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    height: 100vh; background: var(--bg); color: var(--text);
+  }
+  .loader {
+    border: 4px solid var(--border); border-top: 4px solid var(--primary);
+    border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+  #login-screen {
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+    height: 100vh; padding: 20px; background: var(--bg);
+  }
+  .login-card {
+    background: var(--card); padding: 30px; border-radius: 16px;
+    box-shadow: var(--shadow); width: 100%; max-width: 400px; text-align: center;
+    border: 1px solid var(--border);
+  }
+  .login-card h1 { margin-top: 0; color: var(--primary); }
+  .login-card input { margin-bottom: 15px; text-align: center; font-size: 1.2rem; }
+  .login-card button { width: 100%; }
+
+  .alarm-banner{
+    position:fixed; top:0; left:0; right:0; padding:14px 16px;
+    background:var(--bad); color:#fff; z-index:9999;
+    display:flex; align-items:center; gap:12px;
+    box-shadow:0 4px 20px rgba(0,0,0,.35);
+    animation:alarmPulse 1s infinite;
+  }
+  .alarm-banner[hidden]{ display:none; }
+  @keyframes alarmPulse{ 0%,100%{ background:var(--bad); } 50%{ background:#e53935; } }
+  .alarm-icon{ font-size:1.6rem; display:inline-block; animation:shake .4s infinite; }
+  @keyframes shake{ 0%,100%{ transform:rotate(-12deg); } 50%{ transform:rotate(12deg); } }
+  .alarm-text{ flex:1; font-weight:800; font-size:.92rem; overflow-wrap:anywhere; line-height:1.3; }
+  .alarm-btn{ background:#fff; color:var(--bad); border:none; padding:11px 16px; border-radius:10px; font:inherit; font-weight:800; font-size:.9rem; cursor:pointer; flex-shrink:0; }
+
+  .view[hidden]{ display:none; }
+
+  .main-nav{ display:flex; gap:8px; align-items: center; }
+  .main-btn{ flex:1; padding:14px 12px; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:14px; font:inherit; font-weight:800; font-size:1rem; cursor:pointer; }
+  .main-btn.active{ background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+  .logout-btn { background: transparent; border: none; color: var(--bad); font-size: 1.35rem; cursor: pointer; padding: 10px; border-radius: 10px; line-height: 1; }
+  .logout-btn:hover{ background: var(--bad-bg); }
+
+  .modelo-tabs{ display:flex; gap:8px; margin-bottom:12px; }
+  .modelo-tab{
+    flex:1; padding:13px 12px; border-radius:12px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    font:inherit; font-weight:800; font-size:.95rem; cursor:pointer;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .modelo-tab.active[data-modelo="ms3"]{ background:var(--ms3); color:#fff; border-color:var(--ms3); }
+  .modelo-tab.active[data-modelo="dc3"]{ background:var(--dc3); color:#fff; border-color:var(--dc3); }
+
+  .ops-list{ list-style:none; margin:0 0 12px; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .op-item{ display:flex; align-items:center; gap:6px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg); cursor:pointer; }
+  .op-item.active{ border-color:var(--primary); background:var(--card); box-shadow:0 0 0 1px var(--primary) inset; }
+  .op-item .op-name{ flex:1; font-weight:700; overflow-wrap:anywhere; }
+  .op-item .op-meta{ font-size:.72rem; color:var(--muted); font-weight:700; white-space:nowrap; }
+  .op-item .btn-mini{ padding:5px 8px; font-size:.7rem; }
+  .op-item.editing{ border-color:var(--primary); background:var(--card); cursor:default; }
+  .op-item input{ flex:1; padding:6px 8px; font-size:.9rem; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:inherit; }
+
+  .modelo-badge{
+    display:inline-block; font-size:.68rem; font-weight:800;
+    padding:1px 7px; border-radius:999px;
+    margin-right:6px; vertical-align:middle;
+  }
+  .modelo-badge.ms3{ background:var(--ms3-bg); color:var(--ms3); border:1px solid var(--ms3); }
+  .modelo-badge.dc3{ background:var(--dc3-bg); color:var(--dc3); border:1px solid var(--dc3); }
+
+  .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tab{ flex:1 1 0; min-width:96px; padding:13px 8px; border-radius:13px; border:1px solid var(--border); background:var(--card); color:var(--text); font:inherit; font-weight:800; font-size:.92rem; cursor:pointer; position:relative; }
+  .tab.active{ background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+  .tab .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--warn); margin-left:6px; vertical-align:middle; animation: pulse 1.4s infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; }
+  .stat{ background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px 12px; min-width:0; }
+  .stat .k{ display:block; font-size:.68rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+  .stat .v{ display:block; font-size:1.05rem; font-weight:800; margin-top:3px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .stat .v-sub{ display:block; font-size:.78rem; color:var(--muted); font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .stat.ahorro{ border-color:var(--ok); background:var(--ok-bg); }
+  .stat.ahorro .v{ color:var(--ok); }
+  .stat.excedido{ border-color:var(--bad); background:var(--bad-bg); }
+  .stat.excedido .v{ color:var(--bad); }
+  .stat.quedan{ border-color:var(--primary); background:var(--card); }
+  .stat.quedan .v{ color:var(--primary); }
+
+  .lista{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .lista > li.muted{ color:var(--muted); font-size:.9rem; padding:6px 2px; }
+  .montaje{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:11px 12px; border:1px solid var(--border); border-radius:13px; background:var(--bg); }
+  .montaje.curso{ border-color:var(--warn); background:var(--warn-bg); box-shadow:0 0 0 1px var(--warn) inset; }
+  .montaje.hecho{ border-color:var(--ok); background:var(--ok-bg); box-shadow:0 0 0 1px var(--ok) inset; cursor:not-allowed; }
+  .montaje.hecho .m-nombre{ color:var(--ok); }
+  .montaje.hecho .m-nombre::after{ content:' 🔒'; font-size:.85em; }
+  .montaje.hecho .btn-play{ opacity:.55; cursor:not-allowed; }
+  .montaje.hecho.over{ border-color:var(--ok); background:var(--ok-bg); }
+  .montaje.hecho.over .m-crono{ color:var(--bad); }
+  .lock-icon{ width:50px; height:50px; border-radius:50%; background:var(--ok); color:#fff; font-size:1.2rem; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .lock-icon.ajeno{ background:var(--muted); }
+  .montaje.pausado{ border-color:var(--warn); }
+  .montaje.over{ border-color:var(--bad); background:var(--bad-bg); }
+  .montaje.over .m-crono{ color:var(--bad); }
+  .montaje.editing{ border-color:var(--primary); background:var(--card); }
+  .montaje.ajeno{ opacity:.85; border-style:dashed; }
+
+  .btn-play{ width:50px; height:50px; border-radius:50%; border:none; background:var(--primary); color:#fff; font-size:1.35rem; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }
+  .btn-play.pause{ background:var(--warn); }
+  .btn-play.reopen{ background:var(--muted); font-size:1.1rem; }
+
+  .m-main{ flex:1 1 0; min-width:0; }
+  .m-row1{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .m-nombre{ flex:1 1 0; min-width:0; font-weight:800; overflow-wrap:anywhere; }
+  .m-crono{ flex-shrink:0; font-variant-numeric:tabular-nums; font-weight:800; font-size:1.1rem; color:var(--muted); }
+  .montaje.curso .m-crono, .montaje.pausado .m-crono{ color:var(--warn); }
+  .montaje.hecho .m-crono{ color:var(--text); }
+  .m-horas{ font-size:.8rem; color:var(--muted); font-weight:600; margin-top:2px; }
+  .m-fechas{ font-size:.8rem; color:var(--muted); font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .m-fechas b{ color:var(--text); font-weight:800; }
+  .m-fechas .warn-text{ color:var(--warn); font-weight:800; }
+  .m-fechas .bad-text{ color:var(--bad); font-weight:800; }
+
+  .badge-estado{ display:inline-block; font-size:.68rem; font-weight:800; padding:1px 7px; border-radius:999px; background:var(--bg); color:var(--muted); border:1px solid var(--border); margin-left:4px; vertical-align:middle; }
+  .badge-estado.curso, .badge-estado.pausado{ background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  .badge-estado.hecho{ background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
+  .badge-over{ display:inline-block; background:var(--bad); color:#fff; padding:1px 7px; border-radius:999px; font-size:.68rem; font-weight:800; margin-left:4px; vertical-align:middle; }
+  .badge-alerta{ display:inline-block; background:var(--warn); color:#fff; padding:1px 7px; border-radius:999px; font-size:.68rem; font-weight:800; margin-left:4px; vertical-align:middle; animation: pulse 1.2s infinite; }
+  .badge-cat{ display:inline-block; background:var(--card); color:var(--muted); padding:1px 7px; border-radius:999px; font-size:.66rem; font-weight:800; margin-left:4px; vertical-align:middle; border:1px solid var(--border); }
+  .badge-dueno{ display:inline-block; background:var(--primary); color:var(--on-primary); font-size:.66rem; font-weight:800; padding:1px 7px; border-radius:999px; margin-left:6px; vertical-align:middle; }
+
+  .m-acciones{ display:flex; gap:6px; flex-shrink:0; }
+  .btn-mini{ font:inherit; font-size:.82rem; font-weight:800; padding:9px 11px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; }
+  .btn-mini.danger{ color:var(--bad); border-color:var(--bad); }
+
+  .add-form{ display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .add-form input, .add-form select{ flex:2 1 165px; }
+  .add-form .input-horas{ flex:1 1 110px; }
+  .add-form .input-modelo{ flex:1 1 100px; max-width:120px; }
+  .add-form .input-pin{ flex:1 1 80px; max-width:100px; }
+  .add-form button{ flex:1 1 100%; }
+  .btn-primary{ font:inherit; font-size:1rem; font-weight:800; padding:13px 18px; border-radius:12px; border:none; background:var(--primary); color:var(--on-primary); cursor:pointer; }
+
+  .data-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .data-actions .btn-mini{ flex:1 1 140px; padding:12px 14px; font-size:.88rem; }
+
+  .admin-edit-inputs{ display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:0; }
+  .admin-edit-inputs input{ padding:8px 10px; font-size:.92rem; border-radius:8px; }
+
+  .alarma-row, .sync-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .alarma-row .btn-mini, .sync-row .btn-mini{ flex:1 1 140px; padding:12px 14px; font-size:.88rem; }
+
+  .tabla-container { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 12px; border-radius: 12px; border: 1px solid var(--border); }
+  .tabla-tiempos { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  .tabla-tiempos th, .tabla-tiempos td { padding: 10px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .tabla-tiempos th { background: var(--bg); font-size: 0.68rem; text-transform: uppercase; color: var(--muted); font-weight: 800; letter-spacing: 0.05em; text-align: right; }
+  .tabla-tiempos th:first-child { text-align: left; }
+  .tabla-tiempos td { text-align: right; color: var(--text); font-weight: 600; }
+  .tabla-tiempos td:first-child { text-align: left; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .tabla-tiempos tr:last-child td { border-bottom: none; }
+  .tabla-tiempos tfoot tr { background: var(--bg); font-weight: 800; border-top: 2px solid var(--border); }
+  .tabla-tiempos tfoot td { color: var(--text); font-size: 0.9rem; }
+  .tabla-tiempos .diff-pos { color: var(--ok); }
+  .tabla-tiempos .diff-neg { color: var(--bad); }
+
+  .modo-ejecucion{ display:flex; gap:8px; margin-bottom:6px; }
+  .modo-btn{ flex:1; padding:12px 10px; border-radius:12px; border:1px solid var(--border); background:var(--bg); color:var(--text); font:inherit; font-weight:800; font-size:.95rem; cursor:pointer; }
+  .modo-btn.active{ background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+
+  .inf-op{ margin:18px 0 6px; font-weight:800; font-size:1rem; }
+  .inf-puesto{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 10px; margin:12px 0 0; font-size:.88rem; }
+  .inf-puesto span{ color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; }
+  .tabla-tiempos th.l, .tabla-tiempos td.l{ text-align:left; }
+  .tabla-tiempos tr.f-hecho td{ background:var(--ok-bg); }
+  .tabla-tiempos tr.f-curso td{ background:var(--warn-bg); }
+  .tabla-tiempos td:first-child{ max-width:200px; }
+
+  #modal-decision{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; }
+  #modal-decision[hidden]{ display:none; }
+  #modal-decision .modal-card{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:16px; padding:20px; max-width:420px; width:100%; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  #modal-decision h3{ margin:0 0 8px; font-size:1.05rem; }
+  #modal-decision p{ margin:0 0 16px; font-size:.9rem; color:var(--muted); }
+  #modal-decision .modal-actions{ display:flex; flex-direction:column; gap:8px; }
+  #modal-decision .modal-actions button{ padding:13px 16px; border-radius:12px; font:inherit; font-weight:800; font-size:.95rem; cursor:pointer; border:none; }
+  #modal-btn-pausar{ background:var(--warn); color:#fff; }
+  #modal-btn-terminar{ background:var(--ok); color:#fff; }
+  #modal-btn-cancelar{ background:var(--bg); color:var(--text); border:1px solid var(--border) !important; }
+
+  @media (max-width:480px){
+    body{ padding:10px 10px calc(40px + env(safe-area-inset-bottom)); }
+    .card{ padding:12px; border-radius:14px; }
+    .head h1{ font-size:1.15rem; }
+    .btn-play{ width:44px; height:44px; font-size:1.15rem; }
+    .m-crono{ font-size:1rem; }
+    .tabla-tiempos th, .tabla-tiempos td { padding: 8px 6px; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="loader"></div>
+  <h2 style="margin:0;">Conectando...</h2>
+  <p style="color:var(--muted); font-size:0.9rem;">Sincronizando datos</p>
+</div>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Control de Tiempos</h1>
+    <p class="hint" style="margin-bottom:20px;">Introduce tu código y PIN</p>
+    <form id="login-form">
+      <input type="text" id="login-codigo" placeholder="Código (ej. 1022)" required autocomplete="off">
+      <input type="password" id="login-pin" placeholder="PIN o contraseña" required>
+      <button type="submit" class="btn-primary">Entrar</button>
+    </form>
+    <div id="login-error" class="alert bad" style="display:none; margin-top:15px; font-size:0.8rem;"></div>
+  </div>
+</div>
+
+<div id="app-screen" style="display:none;">
+  <div id="alarm-banner" class="alarm-banner" hidden role="alert">
+    <span class="alarm-icon">🔔</span>
+    <span class="alarm-text" id="alarm-text">Alarma</span>
+    <button type="button" id="alarm-stop" class="alarm-btn">Silenciar</button>
+  </div>
+
+  <div class="app">
+    <header class="head" style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h1>Control de tiempos</h1>
+        <p class="sub" id="user-email-display">Cargando...</p>
+      </div>
+      <button type="button" class="logout-btn" id="btn-logout" title="Cerrar sesión" aria-label="Cerrar sesión">⏻</button>
+    </header>
+
+    <nav class="main-nav" id="main-nav">
+      <button type="button" class="main-btn" data-view="admin" id="btn-nav-admin" style="display:none;">⚙ Admin</button>
+      <button type="button" class="main-btn" data-view="operario">⏱ Operario</button>
+    </nav>
+
+    <div id="view-admin" class="view" hidden>
+      
+      <section class="card">
+        <h2>Informe de tiempos por usuario</h2>
+        <div class="grid">
+          <label class="field">Operación <select id="inf-op"></select></label>
+          <label class="field">Usuario <select id="inf-usuario"></select></label>
+        </div>
+        <div class="sync-row">
+          <button type="button" class="btn-mini" id="btn-pdf">📄 Exportar PDF</button>
+          <button type="button" class="btn-mini" id="btn-refresh-inf">🔄 Actualizar informe</button>
+        </div>
+        <div id="informe-body"></div>
+        <p class="hint">Dif. = estimado − real de los montajes terminados (+ ahorro / − exceso). Los montajes en curso se actualizan en vivo.</p>
+      </section>
+
+      <section class="card">
+        <h2>Usuarios Autorizados</h2>
+        <p class="hint" style="margin-top:0; margin-bottom:12px">
+          Crea los códigos y PINs para que los operarios puedan entrar a la app.
+        </p>
+        <ul class="ops-list" id="usuarios-list"></ul>
+        <form class="add-form" id="form-add-usuario" autocomplete="off">
+          <input type="text" id="add-user-nombre" placeholder="Nombre (ej. Juan)" maxlength="30">
+          <input type="text" id="add-user-codigo" placeholder="Código (ej. 1022)" maxlength="10">
+          <input type="password" id="add-user-pin" class="input-pin" placeholder="PIN" maxlength="6">
+          <button type="submit" class="btn-primary">+ Añadir Usuario</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Puestos de Trabajo</h2>
+        <p class="hint" style="margin-top:0; margin-bottom:12px">
+          Define los puestos que aparecerán en las pestañas (ej. Operario 1, Operario 2).
+        </p>
+        <ul class="ops-list" id="puestos-list"></ul>
+        <form class="add-form" id="form-add-puesto" autocomplete="off">
+          <input type="text" id="add-puesto-nombre" placeholder="Nombre del puesto (ej. Operario 3)" maxlength="30">
+          <button type="submit" class="btn-primary">+ Añadir Puesto</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Jornada laboral</h2>
+        <div class="grid">
+          <label class="field">Inicio jornada <input type="time" id="jornada-inicio"></label>
+          <label class="field">Fin jornada <input type="time" id="jornada-fin"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Catálogo de montajes</h2>
+        <p class="hint" style="margin-top:0; margin-bottom:12px">
+          Cada modelo tiene su catálogo base por puesto.
+        </p>
+        <div class="modelo-tabs" id="modelo-tabs-catalogo">
+          <button type="button" class="modelo-tab" data-modelo="ms3">MS3</button>
+          <button type="button" class="modelo-tab" data-modelo="dc3">DC3</button>
+        </div>
+        <nav class="tabs" id="tabs-catalogo"></nav>
+        <ul class="lista" id="catalogo-list" style="margin-top:12px"></ul>
+        <form class="add-form" id="form-add-catalogo" autocomplete="off">
+          <input type="text" id="cat-nombre" placeholder="Nombre del montaje" maxlength="80">
+          <input type="text" id="cat-horas" class="input-horas" inputmode="decimal" placeholder="Horas est.">
+          <button type="submit" class="btn-primary">+ Añadir al catálogo</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Operaciones</h2>
+        <ul class="ops-list" id="ops-list"></ul>
+        <form class="add-form" id="form-add-op" autocomplete="off">
+          <input type="text" id="add-op-nombre" placeholder="Nombre de la operación" maxlength="80">
+          <select id="add-op-modelo" class="input-modelo">
+            <option value="ms3">MS3</option>
+            <option value="dc3">DC3</option>
+          </select>
+          <button type="submit" class="btn-primary">+ Crear operación</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Montajes · <span id="admin-op-nombre">—</span></h2>
+        <label class="field" style="margin-bottom:12px">Operación activa
+          <select id="op-selector-admin"></select>
+        </label>
+        <div class="sync-row">
+          <button type="button" class="btn-mini" id="btn-sync-op">⟳ Sincronizar catálogo</button>
+        </div>
+        <nav class="tabs" id="tabs-admin" style="margin-top:14px"></nav>
+        <ul class="lista" id="admin-list" style="margin-top:12px"></ul>
+        <form class="add-form" id="form-add-op-montaje" autocomplete="off">
+          <input type="text" id="add-op-m-nombre" placeholder="Montaje extra" maxlength="80">
+          <input type="text" id="add-op-m-horas" class="input-horas" inputmode="decimal" placeholder="Horas">
+          <button type="submit" class="btn-primary">+ Añadir solo aquí</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="view-operario" class="view" hidden>
+      <section class="card">
+        <label class="field">Operación activa
+          <select id="op-selector-op"></select>
+        </label>
+      </section>
+
+      <nav class="tabs" id="tabs-operario"></nav>
+
+      <section class="card">
+        <h2 id="op-role-title">Operario 1</h2>
+        <div class="stats" id="op-role-stats"></div>
+      </section>
+
+      <section class="card">
+        <div class="stats">
+          <div class="stat">
+            <span class="k">Primer montaje iniciado</span>
+            <span class="v" id="op-primer-inicio">—</span>
+            <span class="v-sub" id="op-primer-inicio-sub"></span>
+          </div>
+          <div class="stat">
+            <span class="k">Trabajo real</span>
+            <span class="v" id="op-trabajo-real">—</span>
+            <span class="v-sub" id="op-trabajo-real-sub"></span>
+          </div>
+          <div class="stat ahorro" id="op-ahorro-box" hidden>
+            <span class="k">Ahorro</span>
+            <span class="v" id="op-ahorro">—</span>
+            <span class="v-sub" id="op-ahorro-sub"></span>
+          </div>
+          <div class="stat quedan">
+            <span class="k">Quedan de montajes</span>
+            <span class="v" id="op-quedan-tiempo">—</span>
+            <span class="v-sub" id="op-quedan-fecha"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Montajes</h2>
+        <div class="modo-ejecucion" id="modo-selector">
+          <button type="button" class="modo-btn" data-modo="auto">⚡ Automático</button>
+          <button type="button" class="modo-btn" data-modo="manual">✋ Manual</button>
+        </div>
+        <p class="hint" id="modo-hint" style="margin:0 0 12px;"></p>
+        <div id="op-role-alert"></div>
+        <ul class="lista" id="op-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Tabla de tiempos</h2>
+        <div class="tabla-container">
+          <table class="tabla-tiempos" id="tabla-tiempos">
+            <thead>
+              <tr>
+                <th>N.º / Montaje</th>
+                <th>Real</th>
+                <th>Estimado</th>
+                <th>Diferencia</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-tiempos-body"></tbody>
+            <tfoot id="tabla-tiempos-foot"></tfoot>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="modal-decision" hidden>
+  <div class="modal-card">
+    <h3 id="modal-title">Título</h3>
+    <p id="modal-msg"></p>
+    <div class="modal-actions">
+      <button type="button" id="modal-btn-pausar">⏸ Pausar y continuar</button>
+      <button type="button" id="modal-btn-terminar">✅ Terminar y continuar</button>
+      <button type="button" id="modal-btn-cancelar">✕ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  window.__step = 'html cargado';
+  window.__ready = false;
+  window.__fallo = function (titulo, detalle) {
+    if (window.__ready) return;
+    var ls = document.getElementById('loading-screen');
+    if (!ls) return;
+    ['login-screen', 'app-screen'].forEach(function (id) { var e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    ls.style.display = 'flex'; ls.style.padding = '20px'; ls.style.textAlign = 'center';
+    ls.innerHTML = '';
+    function add(tag, txt, css) { var e = document.createElement(tag); e.textContent = txt; if (css) e.style.cssText = css; ls.appendChild(e); return e; }
+    add('h2', titulo, 'margin:0 0 8px;');
+    add('p', detalle, 'margin:0 0 8px;max-width:460px;');
+    add('p', 'Paso: ' + window.__step + ' · origen: ' + location.protocol + (navigator.onLine ? ' · con red' : ' · SIN red') + (window.__lastError ? ' · último error: ' + window.__lastError : ''), 'margin:0 0 16px;font-size:.8rem;opacity:.7;');
+    function probe(url, label) {
+      var line = add('p', label + ': probando…', 'margin:0 0 4px;font-size:.8rem;opacity:.85;');
+      var done = false, c = (window.AbortController ? new AbortController() : null);
+      var t = setTimeout(function () { if (!done) { done = true; line.textContent = label + ': ✗ SIN RESPUESTA (bloqueado)'; if (c) c.abort(); } }, 5000);
+      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: c ? c.signal : undefined })
+        .then(function () { if (!done) { done = true; clearTimeout(t); line.textContent = label + ': ✓ accesible'; } })
+        .catch(function () { if (!done) { done = true; clearTimeout(t); line.textContent = label + ': ✗ error de red'; } });
+    }
+    probe('https://identitytoolkit.googleapis.com/', 'Login (identitytoolkit)');
+    probe('https://firestore.googleapis.com/', 'Base de datos (firestore)');
+    probe('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js', 'Scripts (gstatic)');
+    var st = 'font:inherit;font-weight:700;padding:12px 18px;margin:4px;border-radius:12px;border:1px solid #1f6feb;background:#1f6feb;color:#fff;cursor:pointer;';
+    var b1 = add('button', 'Reintentar', st); b1.onclick = function () { location.reload(); };
+    var b2 = add('button', 'Borrar sesión local', st + 'background:transparent;color:inherit;border-color:#888;');
+    b2.onclick = function () { try { localStorage.removeItem('auth_user'); localStorage.removeItem('ui_state'); } catch (e) {} location.reload(); };
+  };
+  setTimeout(function () {
+    window.__fallo('No se pudo conectar', 'La app no recibió respuesta de Firebase en 12 segundos. Puede ser una red que bloquea Google/Firebase, falta de internet o un archivo abierto desde un visor que no ejecuta scripts.');
+  }, 12000);
+  window.addEventListener('error', function (e) {
+    if (window.__ready) return;
+    var t = e.target;
+    if (t && t.tagName === 'SCRIPT' && /gstatic\.com\/firebasejs/.test(t.src || ''))
+      window.__fallo('No se pudo cargar Firebase', 'Revisa la conexión o si la red bloquea gstatic.com.');
+    else window.__lastError = e.message || (t && t.src) || 'error';
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason || {};
+    window.__lastError = r.code || r.message || 'rechazo sin detalle';
+  });
+})();
+</script>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import { getAuth, initializeAuth, inMemoryPersistence, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+  import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZl9Pim9kRtuu5P4XNMuMZSpe6FzKYI5U",
+    authDomain: "controldetiempo-e7c61.firebaseapp.com",
+    projectId: "controldetiempo-e7c61",
+    storageBucket: "controldetiempo-e7c61.firebasestorage.app",
+    messagingSenderId: "1083059560782",
+    appId: "1:1083059560782:web:27ecb058d8ff23836a7e1f"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  let auth;
+  try {
+    auth = initializeAuth(app, { persistence: inMemoryPersistence });
+  } catch (e) {
+    console.warn('initializeAuth falló, uso getAuth:', e);
+    auth = getAuth(app);
+  }
+
+  let db;
+  try {
+    db = initializeFirestore(app, {
+      localCache: (location.protocol === 'http:' || location.protocol === 'https:')
+        ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+        : memoryLocalCache(),
+      experimentalAutoDetectLongPolling: true
+    });
+  } catch (e) {
+    console.warn('Caché persistente no disponible, se usa memoria:', e);
+    db = getFirestore(app);
+  }
+  window.__step = 'Firebase inicializado';
+
+  let state;
+  let currentUser = null;
+  let unsubscribeSnapshot = null;
+
+  const MODELOS = ['ms3','dc3'];
+  const MODELO_NAMES = { ms3: 'MS3', dc3: 'DC3' };
+  let editingId = null, editingOpId = null, editingCatId = null;
+  let editingPuestoId = null, pendingDeletePuestoId = null;
+  let editingUserId = null, pendingDeleteUserId = null;
+  let pendingDeleteOpId = null;
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, '0');
+  const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const parseNum = (s) => {
+    if (!s) return NaN;
+    let t = String(s).trim().replace(/\s/g,'').replace(',','.');
+    let n = Number(t);
+    return isFinite(n) ? n : NaN;
+  };
+  const parseTime = (s) => {
+    let m = /^(\d{1,2}):(\d{2})$/.exec(String(s||''));
+    return m ? { h: +m[1], m: +m[2] } : null;
+  };
+  const fmtH = (n) => {
+    if (!isFinite(n)) return '—';
+    let s = n.toFixed(2);
+    if (s.endsWith('0')) s = s.slice(0,-1);
+    if (s.endsWith('0')) s = s.slice(0,-1);
+    if (s.endsWith('.')) s = s.slice(0,-1);
+    return s.replace('.', ',') + ' h';
+  };
+  const fmtH3 = (n) => isFinite(n) ? n.toFixed(3).replace('.', ',') : '—';
+  const fmtCrono = (seg) => {
+    if (!isFinite(seg) || seg < 0) seg = 0;
+    seg = Math.floor(seg + 0.0001);
+    return `${pad(Math.floor(seg/3600))}:${pad(Math.floor((seg%3600)/60))}:${pad(seg%60)}`;
+  };
+  const fmtHReal = (seg) => {
+    if (!isFinite(seg) || seg < 0) seg = 0;
+    seg = Math.round(seg);
+    let h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60), s = seg%60;
+    let parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0 || h > 0) parts.push(m + 'm');
+    if (s > 0 || parts.length === 0) parts.push(s + 's');
+    return parts.join(' ');
+  };
+  const fmtFechaCorta = (d) => ['dom','lun','mar','mié','jue','vie','sáb'][d.getDay()] + ' ' + pad(d.getDate()) + '/' + pad(d.getMonth()+1);
+  const esMismoDia = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+
+  function showToast(msg, kind) {
+    let t = document.getElementById('app-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'app-toast';
+      t.style.cssText = 'position:fixed;bottom:20px;left:16px;right:16px;max-width:500px;margin:0 auto;padding:13px 16px;border-radius:12px;font-weight:800;font-size:.9rem;z-index:99999;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.35);transition:opacity .3s;pointer-events:none;';
+      document.body.appendChild(t);
+    }
+    t.style.background = kind === 'bad' ? '#c62828' : (kind === 'ok' ? '#0b7a43' : '#b45309');
+    t.style.color = '#fff';
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(window.__toastTimeout);
+    window.__toastTimeout = setTimeout(() => { t.style.opacity = '0'; }, 3500);
+  }
+
+  function preguntarDecision(titulo, mensaje, textos) {
+    return new Promise(resolve => {
+      const m = $('modal-decision');
+      $('modal-title').textContent = titulo;
+      $('modal-msg').textContent = mensaje;
+      $('modal-btn-pausar').textContent   = (textos && textos.pausar)   || '⏸ Pausar y continuar';
+      $('modal-btn-terminar').textContent = (textos && textos.terminar) || '✅ Terminar y continuar';
+      $('modal-btn-cancelar').textContent = (textos && textos.cancelar) || '✕ Cancelar';
+      m.hidden = false;
+      const close = (v) => { m.hidden = true; resolve(v); };
+      $('modal-btn-pausar').onclick   = () => close('pausar');
+      $('modal-btn-terminar').onclick = () => close('terminar');
+      $('modal-btn-cancelar').onclick = () => close('cancelar');
+    });
+  }
+
+  function getDefaultState() {
+    const puestosInit = [{ id: 'o1', nombre: 'Operario 1' }, { id: 'o2', nombre: 'Operario 2' }];
+    let rolesBase = { o1: [], o2: [] };
+    return {
+      accesos: [
+        { id: uid(), codigo: 'admin', pin: 'admin', nombre: 'Administrador', esAdmin: true },
+        { id: uid(), codigo: '1022', pin: '1111', nombre: 'Juan', esAdmin: false }
+      ],
+      puestos: puestosInit,
+      jornadaInicio: '06:45', jornadaFin: '14:30',
+      alarma: { activa: true, minutos: 2, duracion: 30, vibracion: true },
+      catalogo: { ms3: JSON.parse(JSON.stringify(rolesBase)), dc3: JSON.parse(JSON.stringify(rolesBase)) },
+      modeloActivoAdmin: 'ms3',
+      operaciones: [{ id: uid(), nombre: 'Operación 1', modeloId: 'ms3', modos: { o1: 'auto', o2: 'auto' }, roles: JSON.parse(JSON.stringify(rolesBase)) }],
+      operacionActivaAdmin: '', operacionActivaOp: '',
+      activeRole: 'o1', view: 'operario'
+    };
+  }
+
+  const UI_KEYS = ['view', 'activeRole', 'operacionActivaAdmin', 'operacionActivaOp'];
+  let ui = {};
+  try { ui = JSON.parse(localStorage.getItem('ui_state') || '{}') || {}; } catch (e) { ui = {}; }
+  let appShown = false, ready = false, lastRaw = null, creatingDefault = false, renderTimer = null;
+
+  function captureUi() {
+    if (!state) return;
+    UI_KEYS.forEach(k => { ui[k] = state[k]; });
+    try { localStorage.setItem('ui_state', JSON.stringify(ui)); } catch (e) {}
+  }
+  function applyUi() { UI_KEYS.forEach(k => { if (ui[k] !== undefined && ui[k] !== null && ui[k] !== '') state[k] = ui[k]; }); }
+  function fixUi() {
+    if (!state.puestos.some(p => p.id === state.activeRole)) state.activeRole = state.puestos[0].id;
+    if (!state.operaciones.some(o => o.id === state.operacionActivaAdmin)) state.operacionActivaAdmin = state.operaciones[0].id;
+    if (!state.operaciones.some(o => o.id === state.operacionActivaOp)) state.operacionActivaOp = state.operaciones[0].id;
+    if (state.view !== 'admin' && state.view !== 'operario') state.view = 'operario';
+  }
+  function normalizeState() {
+    const d = getDefaultState();
+    Object.keys(d).forEach(k => { if (state[k] === undefined || state[k] === null) state[k] = d[k]; });
+    if (!Array.isArray(state.accesos) || !state.accesos.length) state.accesos = d.accesos;
+    if (!Array.isArray(state.puestos) || !state.puestos.length) state.puestos = d.puestos;
+    if (!Array.isArray(state.operaciones) || !state.operaciones.length) state.operaciones = d.operaciones;
+    MODELOS.forEach(mid => { if (!state.catalogo[mid]) state.catalogo[mid] = {}; });
+    state.operaciones.forEach(op => {
+      if (!op.roles) op.roles = {};
+      if (!op.modos) op.modos = {};
+      if (!MODELO_NAMES[op.modeloId]) op.modeloId = 'ms3';
+      state.puestos.forEach(p => {
+        if (!Array.isArray(op.roles[p.id])) op.roles[p.id] = [];
+        if (op.modos[p.id] !== 'manual' && op.modos[p.id] !== 'auto') op.modos[p.id] = 'auto';
+      });
+    });
+  }
+
+  async function saveToFirebase() {
+    if (!state) return;
+    try {
+      const data = {};
+      Object.keys(state).forEach(k => { if (!UI_KEYS.includes(k)) data[k] = state[k]; });
+      await setDoc(doc(db, "app", "state"), JSON.parse(JSON.stringify(data)));
+    } catch (e) {
+      console.error("Error al guardar:", e);
+      showToast(e && e.code === 'permission-denied' ? 'Sin permiso en Firestore (revisa las reglas)' : 'Error de conexión al guardar', 'bad');
+    }
+  }
+
+  function typingNow() {
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.closest('#app-screen'));
+  }
+  function scheduleRender() {
+    clearTimeout(renderTimer);
+    if (!currentUser) return;
+    if (typingNow()) { renderTimer = setTimeout(scheduleRender, 1500); return; }
+    render();
+  }
+
+  function listenToFirebase() {
+    if (unsubscribeSnapshot) unsubscribeSnapshot();
+    window.__step = 'esperando datos de Firestore';
+
+    unsubscribeSnapshot = onSnapshot(doc(db, "app", "state"), { includeMetadataChanges: true }, (snap) => {
+      if (!snap.exists()) {
+        if (snap.metadata.fromCache) return;
+        if (!creatingDefault) {
+          creatingDefault = true;
+          state = getDefaultState(); normalizeState(); applyUi(); fixUi();
+          saveToFirebase();
+        }
+        return;
+      }
+
+      const raw = JSON.stringify(snap.data());
+      if (ready && raw === lastRaw) return;
+      lastRaw = raw;
+      state = snap.data();
+      normalizeState(); applyUi(); fixUi();
+
+      if (!ready) {
+        ready = true; window.__ready = true; window.__step = 'listo';
+        $('loading-screen').style.display = 'none';
+      }
+
+      if (currentUser) {
+        const u = state.accesos.find(x => x.id === currentUser.id) ||
+                  state.accesos.find(x => x.codigo === currentUser.codigo && x.pin === currentUser.pin);
+        if (u) currentUser = u; else { logoutLocal(); return; }
+      }
+      if (!currentUser) { $('login-screen').style.display = 'flex'; return; }
+      if (!appShown) showApp(); else scheduleRender();
+    }, (error) => {
+      console.error("Error de escucha:", error);
+      const code = (error && error.code) ? error.code : 'desconocido';
+      if (!ready) {
+        const hint = code === 'permission-denied'
+          ? 'Firestore rechaza la lectura: revisa las reglas (permitir si request.auth != null).'
+          : 'Revisa tu internet.';
+        window.__fallo('Error de conexión', hint + ' (' + code + ')');
+      } else {
+        showToast('Conexión perdida, reintentando…', 'warn');
+        setTimeout(listenToFirebase, 5000);
+      }
+    });
+  }
+
+  function segundosDeMontaje(m) {
+    if (m.estado === 'curso' && m.inicioReal) return (m.tiempoAcumulado || 0) + (Date.now() - m.inicioReal) / 1000;
+    return m.tiempoAcumulado || 0;
+  }
+
+  function checkAutoAdvance() {
+    if (!state) return false;
+    let changed = false;
+    state.operaciones.forEach(op => {
+      state.puestos.forEach(puesto => {
+        let k = puesto.id;
+        if (getModo(op, k) === 'manual') return;
+        let ms = op.roles[k] || [];
+        for (let i = 0; i < ms.length; i++) {
+          let m = ms[i];
+          if (m.estado === 'curso') {
+            let real = segundosDeMontaje(m);
+            let est = (m.horasEstimadas || 0) * 3600;
+
+            if (est > 0 && real >= est) {
+              let next = null;
+              for (let j = i + 1; j < ms.length; j++) {
+                if (ms[j].estado === 'pendiente' || ms[j].estado === 'pausado') { next = ms[j]; break; }
+              }
+              if (!next) {
+                for (let j = 0; j < i; j++) {
+                  if (ms[j].estado === 'pendiente' || ms[j].estado === 'pausado') { next = ms[j]; break; }
+                }
+              }
+
+              if (next) {
+                let finMs = m.inicioReal ? m.inicioReal + Math.max(0, est - (m.tiempoAcumulado || 0)) * 1000 : Date.now();
+                m.tiempoAcumulado = est;
+                m.inicioReal = null;
+                m.estado = 'hecho';
+                if (!next.primerInicio) next.primerInicio = finMs;
+                next.inicioReal = finMs;
+                if (!next.por) next.por = m.por || '';
+                if (!next.porId) next.porId = m.porId || '';
+                next.estado = 'curso';
+                changed = true;
+                showToast(`⏱ ${m.nombre} completado. Iniciando: ${next.nombre}`, 'ok');
+              }
+            }
+          }
+        }
+      });
+    });
+    return changed;
+  }
+
+  function stat(k, v) { return `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span></div>`; }
+
+  function getOpById(opId) { return state.operaciones.find(o => o.id === opId); }
+  function getActiveAdminOp() { return getOpById(state.operacionActivaAdmin) || state.operaciones[0]; }
+  function getActiveOpOp() { return getOpById(state.operacionActivaOp) || state.operaciones[0]; }
+  function montajesOpRole(op, k) { return (op && op.roles && op.roles[k]) ? op.roles[k] : []; }
+  function montajesActiveAdmin(k) { return montajesOpRole(getActiveAdminOp(), k); }
+  function montajesActiveOp(k) { return montajesOpRole(getActiveOpOp(), k); }
+  function catalogoModeloRol(mid, k) { return (state.catalogo[mid] && state.catalogo[mid][k]) ? state.catalogo[mid][k] : []; }
+
+  function esMio(m) {
+    if (!currentUser) return false;
+    if (m.porId) return m.porId === currentUser.id;
+    return m.por === currentUser.nombre;
+  }
+
+  function renderTabsUI() {
+    const containers = ['tabs-catalogo', 'tabs-admin', 'tabs-operario'];
+    containers.forEach(id => {
+      let el = $(id);
+      if (!el) return;
+      let html = '';
+      state.puestos.forEach(p => {
+        let isActive = state.activeRole === p.id;
+        let hasTimer = false;
+        if (id === 'tabs-operario') {
+          let op = getActiveOpOp();
+          if (op && op.roles[p.id]) hasTimer = op.roles[p.id].some(m => m.estado === 'curso');
+        }
+        html += `<button type="button" class="tab ${isActive?'active':''}" data-role="${p.id}">${esc(p.nombre)} ${hasTimer ? '<span class="dot"></span>' : ''}</button>`;
+      });
+      el.innerHTML = html;
+    });
+  }
+
+  function render() {
+    if (!state || !currentUser) return;
+    captureUi();
+
+    $('view-admin').hidden = state.view !== 'admin' || !currentUser.esAdmin;
+    $('view-operario').hidden = state.view !== 'operario';
+
+    document.querySelectorAll('.main-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-view') === state.view);
+    });
+
+    renderTabsUI();
+
+    if (state.view === 'admin' && currentUser.esAdmin) {
+      if (document.activeElement !== $('jornada-inicio')) $('jornada-inicio').value = state.jornadaInicio || '';
+      if (document.activeElement !== $('jornada-fin')) $('jornada-fin').value = state.jornadaFin || '';
+
+      populateInformeSelects();
+      renderInformeBody();
+
+      let elUsers = $('usuarios-list');
+      let htmlUsers = '';
+      state.accesos.forEach(u => {
+        if (editingUserId === u.id) {
+          htmlUsers += `<li class="op-item editing"><input type="text" data-edit-u-nombre value="${esc(u.nombre)}"><input type="text" data-edit-u-codigo value="${esc(u.codigo)}"><input type="password" data-edit-u-pin value="${esc(u.pin)}"><button type="button" class="btn-mini" data-u-act="save" data-id="${esc(u.id)}">✓</button><button type="button" class="btn-mini danger" data-u-act="cancel" data-id="${esc(u.id)}">✕</button></li>`;
+        } else {
+          let delBtn = (pendingDeleteUserId === u.id) ? `<button type="button" class="btn-mini danger" data-u-act="del" data-id="${esc(u.id)}" style="background:var(--bad);color:#fff;">¿Seguro?</button>` : `<button type="button" class="btn-mini danger" data-u-act="del" data-id="${esc(u.id)}">×</button>`;
+          htmlUsers += `<li class="op-item"><span class="op-name">${esc(u.nombre)} <small style="color:var(--muted)">(${esc(u.codigo)})</small> ${u.esAdmin?'<span class="badge-estado hecho">Admin</span>':''}</span><button type="button" class="btn-mini" data-u-act="edit" data-id="${esc(u.id)}">✏</button>${delBtn}</li>`;
+        }
+      });
+      elUsers.innerHTML = htmlUsers;
+
+      let elPuestos = $('puestos-list');
+      let htmlPuestos = '';
+      state.puestos.forEach(p => {
+        if (editingPuestoId === p.id) {
+          htmlPuestos += `<li class="op-item editing"><input type="text" data-edit-p-nombre value="${esc(p.nombre)}"><button type="button" class="btn-mini" data-p-act="save" data-id="${esc(p.id)}">✓</button><button type="button" class="btn-mini danger" data-p-act="cancel" data-id="${esc(p.id)}">✕</button></li>`;
+        } else {
+          let delBtn = (pendingDeletePuestoId === p.id) ? `<button type="button" class="btn-mini danger" data-p-act="del" data-id="${esc(p.id)}" style="background:var(--bad);color:#fff;">¿Borrar?</button>` : `<button type="button" class="btn-mini danger" data-p-act="del" data-id="${esc(p.id)}">×</button>`;
+          htmlPuestos += `<li class="op-item"><span class="op-name">${esc(p.nombre)}</span><button type="button" class="btn-mini" data-p-act="edit" data-id="${esc(p.id)}">✏</button>${delBtn}</li>`;
+        }
+      });
+      elPuestos.innerHTML = htmlPuestos;
+
+      document.querySelectorAll('.modelo-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-modelo') === state.modeloActivoAdmin));
+      let mid = state.modeloActivoAdmin, k = state.activeRole, arr = catalogoModeloRol(mid, k), elCat = $('catalogo-list');
+      if (!arr.length) elCat.innerHTML = `<li class="muted">Sin montajes.</li>`;
+      else {
+        let html = '';
+        arr.forEach(m => {
+          if (editingCatId === m.id) {
+            html += `<li class="montaje editing"><div class="admin-edit-inputs"><input type="text" data-cat-edit-nombre value="${esc(m.nombre)}"><input type="text" data-cat-edit-horas inputmode="decimal" value="${String(m.horasEstimadas).replace('.', ',')}"></div><div class="m-acciones"><button type="button" class="btn-mini" data-cat-act="save" data-id="${esc(m.id)}">✓</button><button type="button" class="btn-mini danger" data-cat-act="cancel" data-id="${esc(m.id)}">✕</button></div></li>`;
+          } else {
+            html += `<li class="montaje"><div class="m-main"><div class="m-nombre">${esc(m.nombre)} <span class="badge-cat">${MODELO_NAMES[mid]}</span></div><div class="m-horas">${fmtH(m.horasEstimadas)} - ${fmtCrono(m.horasEstimadas*3600)}</div></div><div class="m-acciones"><button type="button" class="btn-mini" data-cat-act="edit" data-id="${esc(m.id)}">✏</button><button type="button" class="btn-mini danger" data-cat-act="del" data-id="${esc(m.id)}">×</button></div></li>`;
+          }
+        });
+        elCat.innerHTML = html;
+      }
+
+      let htmlOpsList = '';
+      state.operaciones.forEach(op => {
+        let activa = op.id === state.operacionActivaAdmin;
+        if (editingOpId === op.id) {
+          htmlOpsList += `<li class="op-item editing"><input type="text" data-edit-op-nombre value="${esc(op.nombre)}"><button type="button" class="btn-mini" data-op-act="save" data-id="${esc(op.id)}">✓</button><button type="button" class="btn-mini danger" data-op-act="cancel" data-id="${esc(op.id)}">✕</button></li>`;
+        } else {
+          let est = 0, n = 0;
+          state.puestos.forEach(p => { let ms = montajesOpRole(op, p.id); est += ms.reduce((s, m) => s + (Number(m.horasEstimadas)||0), 0); n += ms.length; });
+          let delBtn = (pendingDeleteOpId === op.id) ? `<button type="button" class="btn-mini danger" data-op-act="del" data-id="${esc(op.id)}" style="background:var(--bad);color:#fff;">¿Borrar?</button>` : `<button type="button" class="btn-mini danger" data-op-act="del" data-id="${esc(op.id)}">×</button>`;
+          htmlOpsList += `<li class="op-item ${activa?'active':''}" data-op="${esc(op.id)}"><span class="op-name"><span class="modelo-badge ${op.modeloId}">${MODELO_NAMES[op.modeloId]}</span>${esc(op.nombre)}</span><span class="op-meta">${n} m. · ${fmtH(est)}</span><button type="button" class="btn-mini" data-op-act="edit" data-id="${esc(op.id)}">✏</button>${delBtn}</li>`;
+        }
+      });
+      $('ops-list').innerHTML = htmlOpsList;
+
+      let selA = $('op-selector-admin');
+      selA.innerHTML = state.operaciones.map(o => `<option value="${esc(o.id)}" ${o.id===state.operacionActivaAdmin?'selected':''}>${MODELO_NAMES[o.modeloId]} · ${esc(o.nombre)}</option>`).join('');
+      let opAct = getActiveAdminOp();
+      $('admin-op-nombre').innerHTML = `<span class="modelo-badge ${opAct.modeloId}">${MODELO_NAMES[opAct.modeloId]}</span>${esc(opAct.nombre)}`;
+
+      let msAdmin = montajesActiveAdmin(state.activeRole), elAdmin = $('admin-list');
+      if (!msAdmin.length) elAdmin.innerHTML = `<li class="muted">No hay montajes en esta operación.</li>`;
+      else {
+        let html = '';
+        msAdmin.forEach(m => {
+          let e = m.horasEstimadas || 0, estTxt = e > 0 ? fmtH(e) + ' - ' + fmtCrono(e*3600) : 'Sin estimación';
+          let cronoTxt = m.estado !== 'pendiente' ? fmtCrono(segundosDeMontaje(m)) : '';
+          let alerta = (m.alertaDisparada && m.estado === 'curso') ? ' <span class="badge-alerta">⏰</span>' : '';
+          if (editingId === m.id) {
+            html += `<li class="montaje editing"><div class="admin-edit-inputs"><input type="text" data-edit-nombre value="${esc(m.nombre)}"><input type="text" data-edit-horas inputmode="decimal" value="${String(e).replace('.', ',')}"></div><div class="m-acciones"><button type="button" class="btn-mini" data-act="save-edit" data-id="${esc(m.id)}">✓</button><button type="button" class="btn-mini danger" data-act="cancel-edit" data-id="${esc(m.id)}">✕</button></div></li>`;
+          } else {
+            let isOver = m.estado!=='pendiente' && e>0 && segundosDeMontaje(m) > e*3600+1;
+            let dueno = (m.por && m.estado !== 'pendiente') ? ` <span class="badge-dueno">👤 ${esc(m.por)}</span>` : '';
+            html += `<li class="montaje ${m.estado} ${isOver?'over':''}"><div class="m-main"><div class="m-row1"><div class="m-nombre">${esc(m.nombre)}${dueno} <span class="badge-estado ${m.estado}">${m.estado}</span>${alerta}</div>${cronoTxt?`<div class="m-crono">${cronoTxt}</div>`:''}</div><div class="m-horas">${estTxt}</div><div class="m-fechas">${fechasLine(m)}</div></div><div class="m-acciones">${m.estado==='hecho' ? `<button type="button" class="btn-mini" data-act="reopen" data-id="${esc(m.id)}" title="Desbloquear">🔓</button>` : ''}<button type="button" class="btn-mini" data-act="edit" data-id="${esc(m.id)}">✏</button><button type="button" class="btn-mini danger" data-act="del" data-id="${esc(m.id)}">×</button></div></li>`;
+          }
+        });
+        elAdmin.innerHTML = html;
+      }
+
+    } else {
+      let selO = $('op-selector-op');
+      let htmlSelO = '';
+      MODELOS.forEach(mid => {
+        let opsM = state.operaciones.filter(o => o.modeloId === mid);
+        if (opsM.length) {
+          htmlSelO += `<optgroup label="${MODELO_NAMES[mid]}">`;
+          opsM.forEach(o => { htmlSelO += `<option value="${esc(o.id)}" ${o.id===state.operacionActivaOp?'selected':''}>${esc(o.nombre)}</option>`; });
+          htmlSelO += `</optgroup>`;
+        }
+      });
+      selO.innerHTML = htmlSelO;
+
+      let k = state.activeRole, op = getActiveOpOp(), ms = montajesActiveOp(k);
+      let modo = getModo(op, k);
+      document.querySelectorAll('#modo-selector .modo-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-modo') === modo));
+      $('modo-hint').textContent = modo === 'auto'
+        ? '⚡ Automático: al llegar al tiempo estimado pasa solo al siguiente montaje.'
+        : '✋ Manual: pulsa ▶ para empezar y ⏹ para terminar cada montaje. Al terminar la tarjeta queda en verde y bloqueada (solo el admin puede desbloquearla).';
+      let roleName = state.puestos.find(p => p.id === k)?.nombre || 'Puesto';
+
+      $('op-role-title').innerHTML = `<span class="modelo-badge ${op.modeloId}">${MODELO_NAMES[op.modeloId]}</span>${roleName}`;
+
+      let est = ms.reduce((s,m)=>s+(Number(m.horasEstimadas)||0),0);
+      let real = ms.reduce((s,m)=>s+segundosDeMontaje(m),0);
+      let hechos = ms.filter(m=>m.estado==='hecho').length;
+      let pend = ms.filter(m=>m.estado==='pendiente').length;
+      let enCursoTodos = ms.filter(m => m.estado === 'curso');
+      let enCursoTxt = enCursoTodos.length === 0
+        ? '—'
+        : (enCursoTodos.length === 1
+            ? esc(enCursoTodos[0].nombre) + (enCursoTodos[0].por ? ` <small style="color:var(--muted)">(${esc(enCursoTodos[0].por)})</small>` : '')
+            : enCursoTodos.map(m => esc(m.nombre) + (m.por ? ` (${esc(m.por)})` : '')).join(' · '));
+      $('op-role-stats').innerHTML = stat('Montajes', ms.length) + stat('Hechos', hechos) + stat('Pendientes', pend) + stat('Estimado', fmtH(est)) + stat('Tiempo real', `<span data-live-real="${k}">${fmtCrono(real)}</span>`) + stat('En curso', enCursoTxt);
+
+      let pi = ms.filter(m=>m.primerInicio).sort((a,b)=>a.primerInicio-b.primerInicio)[0];
+      $('op-primer-inicio').textContent = pi ? pad(new Date(pi.primerInicio).getHours()) + ':' + pad(new Date(pi.primerInicio).getMinutes()) : '—';
+      $('op-primer-inicio-sub').textContent = pi ? (esMismoDia(new Date(pi.primerInicio), new Date()) ? 'hoy' : fmtFechaCorta(new Date(pi.primerInicio))) : 'Ninguno';
+
+      actualizarResumenOp(ms);
+
+      let elOp = $('op-list');
+      if (!ms.length) elOp.innerHTML = `<li class="muted">Sin montajes.</li>`;
+      else {
+        let html = '';
+        ms.forEach(m => {
+          let e = m.horasEstimadas||0, over = m.estado!=='pendiente' && e>0 && segundosDeMontaje(m)>e*3600+1;
+          let mio = esMio(m);
+          let ajenoCurso = (m.estado === 'curso' || m.estado === 'pausado' || m.estado === 'hecho') && m.por && !mio;
+          let cls = `montaje ${m.estado} ${over?'over':''} ${ajenoCurso?'ajeno':''}`;
+          let btn = '', acc = '', cTxt = '—', cAttr = '';
+          let badgeDueno = ajenoCurso ? ` <span class="badge-dueno" title="Ejecutado por ${esc(m.por)}">👤 ${esc(m.por)}</span>` : '';
+
+          if (m.estado==='pendiente') {
+            btn = `<button type="button" class="btn-play" data-act="start" data-id="${m.id}">▶</button>`;
+          } else if (m.estado==='curso') {
+            if (mio) {
+              btn = `<button type="button" class="btn-play pause" data-act="pause" data-id="${m.id}">⏸</button>`;
+              acc = `<button type="button" class="btn-mini" data-act="stop" data-id="${m.id}">⏹</button>`;
+            } else {
+              btn = `<div class="lock-icon ajeno" title="En curso por ${esc(m.por||'otro usuario')}">👤</div>`;
+            }
+            cTxt = fmtCrono(segundosDeMontaje(m)); cAttr = `data-live="${m.id}"`;
+          } else if (m.estado==='pausado') {
+            if (mio || !m.por) {
+              btn = `<button type="button" class="btn-play" data-act="start" data-id="${m.id}">▶</button>`;
+              acc = `<button type="button" class="btn-mini" data-act="stop" data-id="${m.id}">⏹</button>`;
+            } else {
+              btn = `<div class="lock-icon ajeno" title="En pausa por ${esc(m.por||'otro usuario')}">👤</div>`;
+            }
+            cTxt = fmtCrono(segundosDeMontaje(m));
+          } else if (m.estado==='hecho') {
+            btn = `<div class="lock-icon" title="Terminado y bloqueado">🔒</div>`;
+            cTxt = fmtCrono(segundosDeMontaje(m));
+          }
+
+          html += `<li class="${cls}" data-mid="${m.id}" ${m.estado==='hecho'?'title="Bloqueado: solo el admin puede desbloquearlo"':''}>${btn}<div class="m-main"><div class="m-row1"><div class="m-nombre">${esc(m.nombre)}${badgeDueno}</div><div class="m-crono" ${cAttr}>${cTxt}</div></div><div class="m-horas">${fmtH(e)} - ${fmtCrono(e*3600)} est.</div><div class="m-fechas">${fechasLine(m)}</div></div><div class="m-acciones">${acc}</div></li>`;
+        });
+        elOp.innerHTML = html;
+      }
+
+      actualizarTabla(ms);
+    }
+  }
+
+  function actualizarResumenOp(ms) {
+    let est = ms.reduce((s,m)=>s+(Number(m.horasEstimadas)||0),0);
+    let real = ms.reduce((s,m)=>s+segundosDeMontaje(m),0);
+    let enCurso = ms.find(m=>m.estado==='curso');
+    $('op-trabajo-real').textContent = fmtHReal(real);
+    $('op-trabajo-real-sub').textContent = `de ${fmtH(est)} est.`;
+
+    let balance = ms.reduce((b,m) => m.estado==='pendiente'?b:b+((Number(m.horasEstimadas)||0)*3600 - segundosDeMontaje(m)), 0);
+    let ahBox = $('op-ahorro-box');
+    if (Math.abs(balance) >= 30) {
+      ahBox.hidden = false;
+      let esExc = balance < 0, absS = Math.abs(balance);
+      ahBox.querySelector('.k').textContent = esExc ? 'Excedido' : 'Ahorro';
+      ahBox.classList.toggle('ahorro', !esExc);
+      ahBox.classList.toggle('excedido', esExc);
+      $('op-ahorro').innerHTML = `${fmtH(absS/3600)} <span style="font-size:.75rem;color:var(--muted)">- ${fmtCrono(absS)}</span>`;
+    } else ahBox.hidden = true;
+
+    let rem = Math.max(0, ms.reduce((t,m)=>t+((Number(m.horasEstimadas)||0)*3600 - segundosDeMontaje(m)), 0));
+    let hayCurso = !!enCurso;
+    let hayPausa = ms.some(m=>m.estado==='pausado');
+
+    if (!ms.length) {
+      $('op-quedan-tiempo').textContent = '—'; $('op-quedan-fecha').textContent = 'Sin montajes';
+    } else if (rem <= 0 && !hayCurso && !hayPausa) {
+      $('op-quedan-tiempo').textContent = 'Todo hecho'; $('op-quedan-fecha').textContent = '';
+    } else {
+      $('op-quedan-tiempo').innerHTML = `${fmtH(rem/3600)} <span style="font-size:.75rem;color:var(--muted)">- ${fmtCrono(rem)}</span>`;
+      $('op-quedan-fecha').textContent = hayCurso ? 'En curso...' : (hayPausa ? 'En pausa' : 'Calculando fin...');
+    }
+  }
+
+  function actualizarTabla(ms) {
+    let htmlTb = '', tR=0, tE=0, tD=0;
+    ms.forEach((m, idx) => {
+      let rS = segundosDeMontaje(m), rH = rS/3600, eH = m.horasEstimadas||0, dif = eH - rH;
+      let hasSt = !!m.primerInicio;
+      tR += rH; tE += eH; if(hasSt) tD += dif;
+      let dStr = '—', dCls = '';
+      if (hasSt && eH > 0) {
+        if (dif > 0.0001) { dStr = '+' + fmtH3(dif); dCls = 'diff-pos'; }
+        else if (dif < -0.0001) { dStr = fmtH3(dif); dCls = 'diff-neg'; }
+        else dStr = '0,000';
+      }
+      htmlTb += `<tr><td>${idx+1}. ${esc(m.nombre)}</td><td>${hasSt?fmtH3(rH):'—'}</td><td>${eH>0?fmtH3(eH):'—'}</td><td class="${dCls}">${dStr}</td></tr>`;
+    });
+    $('tabla-tiempos-body').innerHTML = htmlTb;
+    let tDStr = '0,000', tDCls = '';
+    if (tD > 0.0001) { tDStr = '+' + fmtH3(tD); tDCls = 'diff-pos'; }
+    else if (tD < -0.0001) { tDStr = fmtH3(tD); tDCls = 'diff-neg'; }
+    $('tabla-tiempos-foot').innerHTML = `<tr><td>Totales</td><td>${fmtH3(tR)}</td><td>${fmtH3(tE)}</td><td class="${tDCls}">${tDStr}</td></tr>`;
+  }
+
+  function getModo(op, k) { return (op && op.modos && op.modos[k] === 'manual') ? 'manual' : 'auto'; }
+
+  let infFiltroOp = '', infFiltroUsuario = '', lastInfHtml = '', lastInfSelHtml = '';
+  const ESTADO_TXT = { pendiente: 'Pendiente', curso: 'En curso', pausado: 'Pausado', hecho: 'Hecho' };
+
+  function hayCursoGlobal() {
+    return state.operaciones.some(op => Object.keys(op.roles || {}).some(k => (op.roles[k] || []).some(m => m.estado === 'curso')));
+  }
+  function fmtDifS(s) {
+    if (s === null || s === undefined) return '—';
+    const r = Math.round(s);
+    return (r > 0 ? '+' : (r < 0 ? '-' : '')) + fmtCrono(Math.abs(r));
+  }
+  function fmtInicio(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function infFila(m) {
+    const est = Math.round((Number(m.horasEstimadas) || 0) * 3600);
+    const real = segundosDeMontaje(m);
+    const hecho = m.estado === 'hecho';
+    return {
+      nombre: m.nombre || 'Montaje', key: m.estado, estado: ESTADO_TXT[m.estado] || String(m.estado),
+      por: m.por || '—', ini: fmtInicio(m.primerInicio),
+      est, real, dif: (hecho && est > 0) ? est - real : null
+    };
+  }
+  function informeDatos(fOp, fUsuario) {
+    const ops = state.operaciones.filter(o => !fOp || o.id === fOp);
+    const out = [];
+    ops.forEach(op => {
+      const porUsuario = new Map();
+      state.puestos.forEach(p => {
+        montajesOpRole(op, p.id).forEach(m => {
+          const fila = infFila(m);
+          const u = (m.por || 'Sin asignar').trim() || 'Sin asignar';
+          if (fUsuario && u !== fUsuario) return;
+          if (!porUsuario.has(u)) porUsuario.set(u, []);
+          porUsuario.get(u).push(fila);
+        });
+      });
+      const grupos = [];
+      porUsuario.forEach((filas, usuario) => {
+        grupos.push({
+          usuario, filas,
+          hechos: filas.filter(f => f.key === 'hecho').length,
+          estS: filas.reduce((s, f) => s + f.est, 0),
+          realS: filas.reduce((s, f) => s + f.real, 0),
+          difS: filas.reduce((s, f) => s + (f.dif === null ? 0 : f.dif), 0)
+        });
+      });
+      grupos.sort((a, b) => {
+        if (a.usuario === 'Sin asignar') return 1;
+        if (b.usuario === 'Sin asignar') return -1;
+        return a.usuario.localeCompare(b.usuario);
+      });
+      if (grupos.length) out.push({ op, grupos });
+    });
+    return out;
+  }
+
+  function populateInformeSelects() {
+    const optsOp = '<option value="">Todas las operaciones</option>' + state.operaciones.map(o => `<option value="${esc(o.id)}">${MODELO_NAMES[o.modeloId]} · ${esc(o.nombre)}</option>`).join('');
+    const nombres = new Set();
+    state.accesos.forEach(u => { if (u.nombre) nombres.add(u.nombre); });
+    state.operaciones.forEach(op => state.puestos.forEach(p => {
+      (op.roles[p.id] || []).forEach(m => { if (m.por) nombres.add(m.por); });
+    }));
+    const listaUsu = Array.from(nombres).sort((a, b) => a.localeCompare(b));
+    const optsUsu = '<option value="">Todos los usuarios</option>' + listaUsu.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    if (!state.operaciones.some(o => o.id === infFiltroOp)) infFiltroOp = '';
+    if (infFiltroUsuario && !nombres.has(infFiltroUsuario)) infFiltroUsuario = '';
+    const key = optsOp + '||' + optsUsu;
+    if (key !== lastInfSelHtml) {
+      lastInfSelHtml = key;
+      $('inf-op').innerHTML = optsOp;
+      $('inf-usuario').innerHTML = optsUsu;
+    }
+    $('inf-op').value = infFiltroOp;
+    $('inf-usuario').value = infFiltroUsuario;
+  }
+
+  function renderInformeBody() {
+    const el = $('informe-body');
+    if (!el || !state) return;
+    const datos = informeDatos(infFiltroOp, infFiltroUsuario);
+    let html = '';
+    if (!datos.length) html = '<p class="hint">No hay montajes en la selección.</p>';
+    datos.forEach(d => {
+      html += `<div class="inf-op"><span class="modelo-badge ${d.op.modeloId}">${MODELO_NAMES[d.op.modeloId]}</span>${esc(d.op.nombre)}</div>`;
+      d.grupos.forEach(g => {
+        const rows = g.filas.map(f => {
+          const pend = f.key === 'pendiente' && f.real === 0;
+          const dCls = f.dif === null ? '' : (f.dif > 0.5 ? 'diff-pos' : (f.dif < -0.5 ? 'diff-neg' : ''));
+          return `<tr class="f-${f.key}"><td>${esc(f.nombre)}</td><td class="l">${f.estado}</td><td class="l">${esc(f.por)}</td><td class="l">${f.ini}</td><td>${f.est > 0 ? fmtCrono(f.est) : '—'}</td><td>${pend ? '—' : fmtCrono(f.real)}</td><td class="${dCls}">${fmtDifS(f.dif)}</td></tr>`;
+        }).join('');
+        const tCls = g.hechos ? (g.difS > 0.5 ? 'diff-pos' : (g.difS < -0.5 ? 'diff-neg' : '')) : '';
+        html += `<div class="inf-puesto"><b>👤 ${esc(g.usuario)}</b><span>Hechos ${g.hechos}/${g.filas.length}</span></div>` +
+          `<div class="tabla-container"><table class="tabla-tiempos"><thead><tr><th class="l">Montaje</th><th class="l">Estado</th><th class="l">Por</th><th class="l">Inicio</th><th>Estim.</th><th>Real</th><th>Dif.</th></tr></thead>` +
+          `<tbody>${rows}</tbody><tfoot><tr><td>Totales</td><td></td><td></td><td></td><td>${fmtCrono(g.estS)}</td><td>${fmtCrono(g.realS)}</td><td class="${tCls}">${fmtDifS(g.hechos ? g.difS : null)}</td></tr></tfoot></table></div>`;
+      });
+    });
+    if (html === lastInfHtml) return;
+    lastInfHtml = html;
+    const sc = Array.from(el.querySelectorAll('.tabla-container')).map(c => c.scrollLeft);
+    el.innerHTML = html;
+    Array.from(el.querySelectorAll('.tabla-container')).forEach((c, i) => { if (sc[i]) c.scrollLeft = sc[i]; });
+  }
+
+  const HELV_W = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,
+    667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,
+    556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+  function pdfW(str, size, bold) {
+    let w = 0;
+    for (const ch of String(str)) { const c = ch.charCodeAt(0); w += (c >= 32 && c <= 126) ? HELV_W[c - 32] : 556; }
+    return w * size / 1000 * (bold ? 1.06 : 1);
+  }
+  function pdfFit(str, maxW, size, bold) {
+    str = String(str);
+    if (pdfW(str, size, bold) <= maxW) return str;
+    while (str.length > 1 && pdfW(str + '...', size, bold) > maxW) str = str.slice(0, -1);
+    return str + '...';
+  }
+  function pdfEnc(str) {
+    let o = '';
+    for (const ch of String(str)) {
+      let c = ch.charCodeAt(0);
+      if (ch === '—') c = 0x97; else if (ch === '–') c = 0x96; else if (ch === '…') c = 0x85;
+      else if (ch === '−') c = 0x2D;
+      else if (c > 255 || (c >= 0x80 && c < 0xA0) || c < 32) c = 63;
+      const t = String.fromCharCode(c);
+      o += (t === '(' || t === ')' || t === '\\') ? '\\' + t : t;
+    }
+    return o;
+  }
+  function pdfAssemble(pages, W, H) {
+    const n = pages.length, objs = [];
+    objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    const kids = [];
+    for (let i = 0; i < n; i++) kids.push((5 + 2 * i) + ' 0 R');
+    objs[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${n} >>`;
+    objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+    for (let i = 0; i < n; i++) {
+      const content = pages[i].join('\n');
+      objs[5 + 2 * i] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + 2 * i} 0 R >>`;
+      objs[6 + 2 * i] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+    }
+    let out = '%PDF-1.4\n';
+    const offs = [];
+    for (let i = 1; i < objs.length; i++) { offs[i] = out.length; out += `${i} 0 obj\n${objs[i]}\nendobj\n`; }
+    const xref = out.length;
+    out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+    for (let i = 1; i < objs.length; i++) out += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+    out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    const bytes = new Uint8Array(out.length);
+    for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+    return bytes;
+  }
+
+  function generarInformePdf() {
+    const datos = informeDatos(infFiltroOp, infFiltroUsuario);
+    const W = 842, H = 595, M = 36, CW = W - 2 * M;
+    const cols = [
+      { k: 'nombre', t: 'MONTAJE', w: 290, a: 'l' }, { k: 'estado', t: 'ESTADO', w: 70, a: 'l' },
+      { k: 'por', t: 'POR', w: 110, a: 'l' }, { k: 'ini', t: 'INICIO', w: 75, a: 'l' },
+      { k: 'est', t: 'ESTIM.', w: 75, a: 'r' }, { k: 'real', t: 'REAL', w: 75, a: 'r' }, { k: 'dif', t: 'DIF.', w: 75, a: 'r' }
+    ];
+    const OK = '0.04 0.48 0.26', BAD = '0.78 0.16 0.16', GRAY = '0.38 0.42 0.5';
+    const pages = []; let cur = null, y = 0;
+    const T = (x, yTop, str, size, bold, rgb, right) => {
+      const w = pdfW(str, size, bold);
+      cur.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${rgb || '0 0 0'} rg ${(right ? x - w : x).toFixed(2)} ${(H - yTop).toFixed(2)} Td (${pdfEnc(str)}) Tj ET`);
+    };
+    const R = (x, yTop, w, h, rgb) => cur.push(`${rgb} rg ${x.toFixed(2)} ${(H - yTop - h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);
+    const L = (x1, y1, x2, y2, rgb) => cur.push(`0.5 w ${rgb} RG ${x1.toFixed(2)} ${(H - y1).toFixed(2)} m ${x2.toFixed(2)} ${(H - y2).toFixed(2)} l S`);
+
+    const nomOp = infFiltroOp ? ((state.operaciones.find(o => o.id === infFiltroOp) || {}).nombre || '') : 'Todas';
+    const nomUsu = infFiltroUsuario || 'Todos';
+    const now = new Date();
+    const fecha = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    function newPage() {
+      cur = []; pages.push(cur); y = M;
+      if (pages.length === 1) {
+        T(M, y + 14, 'Informe de tiempos', 16, true); y += 22;
+        T(M, y + 9, `Generado: ${fecha}  ·  Operación: ${pdfFit(nomOp, 260, 9, false)}  ·  Usuario: ${pdfFit(nomUsu, 160, 9, false)}`, 9, false, GRAY); y += 14;
+        T(M, y + 8, 'Dif. = estimado - real de los montajes terminados (+ ahorro / - exceso).', 8, false, GRAY); y += 20;
+      } else {
+        T(M, y + 10, 'Informe de tiempos', 10, true); y += 20;
+      }
+    }
+    const ensure = (h) => { if (y + h > H - 40) newPage(); };
+    function drawHead() {
+      R(M, y, CW, 16, '0.93 0.94 0.96');
+      let x = M;
+      cols.forEach(c => { if (c.a === 'l') T(x + 4, y + 11, c.t, 7.5, true, GRAY); else T(x + c.w - 4, y + 11, c.t, 7.5, true, GRAY, true); x += c.w; });
+      y += 16;
+    }
+    function cells(f, bold) {
+      let x = M;
+      cols.forEach(c => {
+        let v = f[c.k], rgb = '0 0 0';
+        if (c.k === 'dif') { v = fmtDifS(f.dif); if (f.dif > 0.5) rgb = OK; else if (f.dif < -0.5) rgb = BAD; }
+        else if (c.k === 'est') v = f.est > 0 ? fmtCrono(f.est) : '—';
+        else if (c.k === 'real') v = (f.key === 'pendiente' && f.real === 0) ? '—' : fmtCrono(f.real);
+        v = pdfFit(v, c.w - 8, 9, bold);
+        if (c.a === 'l') T(x + 4, y + 11, v, 9, bold, rgb); else T(x + c.w - 4, y + 11, v, 9, bold, rgb, true);
+        x += c.w;
+      });
+    }
+
+    newPage();
+    if (!datos.length) T(M, y + 12, 'No hay montajes en la selección.', 10, false);
+    datos.forEach(d => {
+      ensure(26 + 16 + 16 + 16 + 16);
+      R(M, y, CW, 20, '0.12 0.2 0.3');
+      T(M + 8, y + 14, pdfFit(`${MODELO_NAMES[d.op.modeloId]}  ·  ${d.op.nombre}`, CW - 16, 11, true), 11, true, '1 1 1');
+      y += 26;
+      d.grupos.forEach(g => {
+        ensure(16 + 16 + 16 + 16);
+        T(M, y + 11, `Usuario: ${g.usuario}`, 10, true);
+        T(M + CW, y + 11, `Hechos ${g.hechos}/${g.filas.length}   ·   Estimado ${fmtCrono(g.estS)}   ·   Real ${fmtCrono(g.realS)}   ·   Dif. ${fmtDifS(g.hechos ? g.difS : null)}`, 8.5, false, GRAY, true);
+        y += 18;
+        drawHead();
+        g.filas.forEach(f => {
+          if (y + 16 > H - 40) { newPage(); T(M, y + 11, `${d.op.nombre} · ${g.usuario} (cont.)`, 9, true); y += 16; drawHead(); }
+          if (f.key === 'hecho') R(M, y, CW, 16, '0.89 0.97 0.93');
+          else if (f.key === 'curso') R(M, y, CW, 16, '0.996 0.95 0.78');
+          cells(f, false);
+          L(M, y + 16, M + CW, y + 16, '0.85 0.87 0.9');
+          y += 16;
+        });
+        ensure(16);
+        L(M, y, M + CW, y, '0.4 0.45 0.5');
+        cells({ nombre: 'Totales', estado: '', por: '', ini: '', est: g.estS, real: g.realS, dif: g.hechos ? g.difS : null, key: 'total' }, true);
+        y += 28;
+      });
+      y += 4;
+    });
+    const total = pages.length;
+    pages.forEach((p, i) => {
+      cur = p;
+      T(M, H - 20, 'Control de tiempos', 8, false, GRAY);
+      T(W - M, H - 20, `Pág. ${i + 1}/${total}`, 8, false, GRAY, true);
+    });
+    return pdfAssemble(pages, W, H);
+  }
+
+  function fechasLine(m) {
+    let e = (m.horasEstimadas||0)*3600;
+    let start = m.primerInicio ? pad(new Date(m.primerInicio).getHours())+':'+pad(new Date(m.primerInicio).getMinutes()) : null;
+    let over = m.estado!=='pendiente' && e>0 && segundosDeMontaje(m)>e+1;
+    let oMin = over ? Math.floor((segundosDeMontaje(m)-e)/60) : 0;
+    if (m.estado==='pendiente') {
+      if (e<=0) return '';
+      let end = new Date(Date.now()+e*1000);
+      return `Si empiezas ahora: <b>${pad(end.getHours())}:${pad(end.getMinutes())}</b>`;
+    }
+    if (m.estado==='curso') {
+      let end = e>0 ? new Date(Date.now()+(e-segundosDeMontaje(m))*1000) : null;
+      return `Inicio <b>${start||'—'}</b> → Est. fin <b>${end?pad(end.getHours())+':'+pad(end.getMinutes()):'—'}</b> ${over?`<span class="badge-over">+${oMin}m</span>`:''}`;
+    }
+    if (m.estado==='pausado') return `Inicio <b>${start||'—'}</b> · En pausa ${over?`<span class="badge-over">+${oMin}m</span>`:''}`;
+    if (m.estado==='hecho') {
+      let ganado = Math.floor((e-segundosDeMontaje(m))/60);
+      return `Inicio <b>${start||'—'}</b> · Real ${fmtCrono(segundosDeMontaje(m))} ${over?`<span class="bad-text">(+${oMin}m)</span>`:(ganado>0?`<span class="warn-text">(−${ganado}m)</span>`:'')}`;
+    }
+    return '';
+  }
+
+  function showApp(fresh) {
+    appShown = true;
+    $('loading-screen').style.display = 'none';
+    $('login-screen').style.display = 'none';
+    $('app-screen').style.display = 'block';
+    $('user-email-display').textContent = `${currentUser.nombre} (${currentUser.codigo})`;
+
+    if (currentUser.esAdmin) {
+      $('btn-nav-admin').style.display = 'block';
+      if (fresh && state) state.view = 'admin';
+    } else {
+      $('btn-nav-admin').style.display = 'none';
+      if (state && state.view === 'admin') state.view = 'operario';
+    }
+
+    render();
+    startTick();
+  }
+
+  function logoutLocal() {
+    try { localStorage.removeItem('auth_user'); } catch (e) {}
+    currentUser = null; appShown = false;
+    $('app-screen').style.display = 'none';
+    $('login-screen').style.display = 'flex';
+    showToast('Sesión cerrada: tu usuario ya no existe o ha cambiado', 'warn');
+  }
+
+  window.__step = 'autenticando';
+  Promise.race([
+    signInAnonymously(auth),
+    new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 8000))
+  ]).then(() => {
+    window.__step = 'autenticado';
+    try {
+      const saved = localStorage.getItem('auth_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u && u.id) currentUser = u; else localStorage.removeItem('auth_user');
+      }
+    } catch (e) { localStorage.removeItem('auth_user'); currentUser = null; }
+    listenToFirebase();
+  }).catch(err => {
+    console.error("Error auth anónimo:", err);
+    const code = (err && err.code) ? err.code : '';
+    let hint = 'Revisa tu internet.';
+    if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation')
+      hint = 'Activa el proveedor "Anónimo" en Firebase → Authentication → Método de acceso.';
+    else if (code === 'auth/network-request-failed') hint = 'Sin conexión o red bloqueada.';
+    else if (code === 'timeout') hint = 'El servicio de login no responde en 8 s (red bloqueando identitytoolkit.googleapis.com o almacenamiento del navegador bloqueado).';
+    window.__fallo('Error de autenticación', hint + (code ? ' (' + code + ')' : ''));
+  });
+
+  $('login-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    let cod = $('login-codigo').value.trim();
+    let pin = $('login-pin').value.trim();
+    $('login-error').style.display = 'none';
+
+    if (!state) {
+      $('login-error').textContent = "Conectando... Espera un segundo.";
+      $('login-error').style.display = 'block';
+      return;
+    }
+
+    let user = state.accesos.find(u => u.codigo === cod && u.pin === pin);
+    if (user) {
+      currentUser = user;
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      showApp(true);
+    } else {
+      $('login-error').textContent = "Código o PIN incorrectos.";
+      $('login-error').style.display = 'block';
+    }
+  });
+
+  $('btn-logout').addEventListener('click', async () => {
+    if (!currentUser || !state) return;
+    let enCurso = [];
+    state.operaciones.forEach(op => {
+      state.puestos.forEach(p => {
+        (op.roles[p.id] || []).forEach(m => {
+          const mio = m.porId ? m.porId === currentUser.id : m.por === currentUser.nombre;
+          if (m.estado === 'curso' && mio) enCurso.push(m);
+        });
+      });
+    });
+    if (!enCurso.length) {
+      if (confirm('¿Seguro que quieres cerrar sesión?')) {
+        localStorage.removeItem('auth_user');
+        window.location.reload();
+      }
+      return;
+    }
+    const nombres = enCurso.map(m => `"${m.nombre}"`).join(', ');
+    const dec = await preguntarDecision(
+      enCurso.length === 1 ? 'Tienes un montaje en curso' : 'Tienes montajes en curso',
+      `${nombres} en marcha. ¿Qué haces antes de salir?`,
+      { pausar: '⏸ Pausar y salir', terminar: '✅ Terminar y salir', cancelar: '✕ Cancelar (seguir aquí)' }
+    );
+    if (dec === 'cancelar') return;
+    enCurso.forEach(m => {
+      m.tiempoAcumulado = segundosDeMontaje(m);
+      m.inicioReal = null;
+      m.estado = (dec === 'terminar') ? 'hecho' : 'pausado';
+    });
+    await saveToFirebase();
+    localStorage.removeItem('auth_user');
+    window.location.reload();
+  });
+
+  $('main-nav').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    if (btn.getAttribute('data-view') === 'admin' && !currentUser.esAdmin) return showToast("No eres admin", "bad");
+    state.view = btn.getAttribute('data-view');
+    saveToFirebase(); render();
+  });
+
+  document.querySelector('.app').addEventListener('click', e => {
+    let btn = e.target.closest('.tab');
+    if (btn && btn.hasAttribute('data-role')) {
+      state.activeRole = btn.getAttribute('data-role');
+      editingId = null; editingCatId = null;
+      saveToFirebase(); render();
+    }
+  });
+
+  $('form-add-usuario').addEventListener('submit', e => {
+    e.preventDefault();
+    let n = $('add-user-nombre').value.trim();
+    let c = $('add-user-codigo').value.trim();
+    let p = $('add-user-pin').value.trim();
+    if (!c || !p) return showToast("Código y PIN obligatorios", "bad");
+    if (state.accesos.some(u => u.codigo === c)) return showToast("Ese código ya existe", "bad");
+
+    state.accesos.push({ id: uid(), nombre: n || 'Operario', codigo: c, pin: p, esAdmin: false });
+    $('add-user-nombre').value = ''; $('add-user-codigo').value = ''; $('add-user-pin').value = '';
+    saveToFirebase(); render();
+    showToast("Usuario añadido", "ok");
+  });
+
+  $('usuarios-list').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-u-act]');
+    if (!btn) return;
+    let act = btn.getAttribute('data-u-act'), id = btn.getAttribute('data-id');
+
+    if (act === 'edit') { editingUserId = id; render(); }
+    else if (act === 'cancel') { editingUserId = null; render(); }
+    else if (act === 'save') {
+      let u = state.accesos.find(x => x.id === id);
+      if (u) {
+        let nn = document.querySelector('[data-edit-u-nombre]').value.trim() || 'Operario';
+        let cc = document.querySelector('[data-edit-u-codigo]').value.trim();
+        let pp = document.querySelector('[data-edit-u-pin]').value.trim();
+        if (!cc || !pp) return showToast("Código y PIN obligatorios", "bad");
+        if (state.accesos.some(x => x.id !== id && x.codigo === cc)) return showToast("Ese código ya existe", "bad");
+        u.nombre = nn; u.codigo = cc; u.pin = pp;
+        editingUserId = null; saveToFirebase(); render();
+      }
+    }
+    else if (act === 'del') {
+      if (state.accesos.length === 1) return showToast("No puedes borrar el último usuario", "bad");
+      let objetivo = state.accesos.find(u => u.id === id);
+      if (objetivo && objetivo.esAdmin && state.accesos.filter(u => u.esAdmin).length === 1) return showToast("No puedes borrar al único administrador", "bad");
+      if (pendingDeleteUserId !== id) {
+        pendingDeleteUserId = id; render();
+        setTimeout(() => { pendingDeleteUserId = null; render(); }, 4000);
+        showToast('Pulsa × otra vez para confirmar', 'warn');
+      } else {
+        pendingDeleteUserId = null;
+        state.accesos = state.accesos.filter(u => u.id !== id);
+        saveToFirebase(); render();
+      }
+    }
+  });
+
+  $('form-add-puesto').addEventListener('submit', e => {
+    e.preventDefault();
+    let nombre = $('add-puesto-nombre').value.trim();
+    if (!nombre) return;
+    let newId = uid();
+    state.puestos.push({ id: newId, nombre: nombre });
+    state.catalogo.ms3[newId] = [];
+    state.catalogo.dc3[newId] = [];
+    state.operaciones.forEach(op => { op.roles[newId] = []; if (op.modos) op.modos[newId] = 'auto'; });
+    $('add-puesto-nombre').value = '';
+    saveToFirebase(); render();
+    showToast("Puesto añadido", "ok");
+  });
+
+  $('puestos-list').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-p-act]');
+    if (!btn) return;
+    let act = btn.getAttribute('data-p-act'), id = btn.getAttribute('data-id');
+
+    if (act === 'edit') { editingPuestoId = id; render(); }
+    else if (act === 'cancel') { editingPuestoId = null; render(); }
+    else if (act === 'save') {
+      let p = state.puestos.find(x => x.id === id);
+      if (p) { p.nombre = document.querySelector('[data-edit-p-nombre]').value.trim() || 'Puesto'; editingPuestoId = null; saveToFirebase(); render(); }
+    }
+    else if (act === 'del') {
+      if (state.puestos.length === 1) return showToast("No puedes borrar el último puesto", "bad");
+      if (pendingDeletePuestoId !== id) {
+        pendingDeletePuestoId = id; render();
+        setTimeout(() => { pendingDeletePuestoId = null; render(); }, 4000);
+        showToast('Pulsa × otra vez para confirmar', 'warn');
+      } else {
+        pendingDeletePuestoId = null;
+        state.puestos = state.puestos.filter(p => p.id !== id);
+        delete state.catalogo.ms3[id];
+        delete state.catalogo.dc3[id];
+        state.operaciones.forEach(op => { delete op.roles[id]; if (op.modos) delete op.modos[id]; });
+        if (state.activeRole === id) state.activeRole = state.puestos[0].id;
+        saveToFirebase(); render();
+      }
+    }
+  });
+
+  $('modelo-tabs-catalogo').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-modelo]');
+    if (!btn) return;
+    state.modeloActivoAdmin = btn.getAttribute('data-modelo');
+    editingCatId = null;
+    saveToFirebase(); render();
+  });
+
+  $('jornada-inicio').addEventListener('change', function() { if (parseTime(this.value)) { state.jornadaInicio = this.value; saveToFirebase(); } });
+  $('jornada-fin').addEventListener('change', function() { if (parseTime(this.value)) { state.jornadaFin = this.value; saveToFirebase(); } });
+
+  $('form-add-catalogo').addEventListener('submit', e => {
+    e.preventDefault();
+    let n = $('cat-nombre').value.trim(), h = parseNum($('cat-horas').value);
+    if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+    if (!state.catalogo[state.modeloActivoAdmin][state.activeRole]) state.catalogo[state.modeloActivoAdmin][state.activeRole] = [];
+    state.catalogo[state.modeloActivoAdmin][state.activeRole].push({ id: uid(), nombre: n || 'Montaje', horasEstimadas: Math.round(h*100)/100 });
+    $('cat-nombre').value = ''; $('cat-horas').value = '';
+    saveToFirebase(); render();
+  });
+
+  $('catalogo-list').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-cat-act]');
+    if (!btn) return;
+    let act = btn.getAttribute('data-cat-act'), id = btn.getAttribute('data-id'), mid = state.modeloActivoAdmin, k = state.activeRole;
+    let arr = state.catalogo[mid][k] || [];
+    if (act === 'edit') { editingCatId = id; render(); }
+    else if (act === 'cancel') { editingCatId = null; render(); }
+    else if (act === 'del') {
+      if (confirm('¿Borrar montaje del catálogo?')) {
+        state.catalogo[mid][k] = arr.filter(m => m.id !== id); saveToFirebase(); render();
+      }
+    }
+    else if (act === 'save') {
+      let m = arr.find(x => x.id === id);
+      if (!m) return;
+      let nEl = document.querySelector('[data-cat-edit-nombre]'), hEl = document.querySelector('[data-cat-edit-horas]');
+      let h = parseNum(hEl.value);
+      if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+      m.nombre = nEl.value.trim() || 'Montaje'; m.horasEstimadas = Math.round(h*100)/100;
+      editingCatId = null; saveToFirebase(); render();
+    }
+  });
+
+  $('form-add-op').addEventListener('submit', e => {
+    e.preventDefault();
+    let n = $('add-op-nombre').value.trim(), mid = $('add-op-modelo').value;
+    if (!n) return;
+    let rolesInit = {}, modosInit = {};
+    state.puestos.forEach(p => { rolesInit[p.id] = []; modosInit[p.id] = 'auto'; });
+    let newOp = { id: uid(), nombre: n, modeloId: mid, modos: modosInit, roles: rolesInit };
+    state.operaciones.push(newOp);
+    state.operacionActivaAdmin = newOp.id;
+    $('add-op-nombre').value = '';
+    saveToFirebase(); render();
+  });
+
+  $('ops-list').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-op-act]');
+    if (btn && btn.closest('#ops-list')) {
+      let act = btn.getAttribute('data-op-act'), id = btn.getAttribute('data-id');
+      if (act === 'edit') { editingOpId = id; render(); }
+      else if (act === 'cancel') { editingOpId = null; render(); }
+      else if (act === 'save') {
+        let inp = document.querySelector('[data-edit-op-nombre]'), op = getOpById(id);
+        if (inp && op) { op.nombre = inp.value.trim() || 'Operación'; editingOpId = null; saveToFirebase(); render(); }
+      }
+      else if (act === 'del') {
+        if (state.operaciones.length === 1) {
+          let rolesInit = {}, modosInit = {};
+          state.puestos.forEach(p => { rolesInit[p.id] = []; modosInit[p.id] = 'auto'; });
+          let nueva = { id: uid(), nombre: 'Operación 1', modeloId: 'ms3', modos: modosInit, roles: rolesInit };
+          state.operaciones = [nueva]; state.operacionActivaAdmin = nueva.id; state.operacionActivaOp = nueva.id;
+          saveToFirebase(); render(); return;
+        }
+        if (pendingDeleteOpId !== id) {
+          pendingDeleteOpId = id; render();
+          setTimeout(() => { pendingDeleteOpId = null; render(); }, 4000);
+          showToast('Pulsa × otra vez para confirmar', 'warn');
+        } else {
+          pendingDeleteOpId = null;
+          state.operaciones = state.operaciones.filter(o => o.id !== id);
+          if (state.operacionActivaAdmin === id) state.operacionActivaAdmin = state.operaciones[0].id;
+          if (state.operacionActivaOp === id) state.operacionActivaOp = state.operaciones[0].id;
+          saveToFirebase(); render();
+        }
+      }
+      return;
+    }
+    let item = e.target.closest('.op-item');
+    if (item && !item.classList.contains('editing') && item.closest('#ops-list')) {
+      state.operacionActivaAdmin = item.getAttribute('data-op');
+      saveToFirebase(); render();
+    }
+  });
+
+  $('op-selector-admin').addEventListener('change', function() { state.operacionActivaAdmin = this.value; saveToFirebase(); render(); });
+  $('op-selector-op').addEventListener('change', function() { state.operacionActivaOp = this.value; saveToFirebase(); render(); });
+
+  $('btn-sync-op').addEventListener('click', () => {
+    let op = getActiveAdminOp(), added = 0;
+    state.puestos.forEach(p => {
+      let k = p.id;
+      if (!op.roles[k]) op.roles[k] = [];
+      let exist = op.roles[k].map(m => m.nombre.trim().toLowerCase());
+      catalogoModeloRol(op.modeloId, k).forEach(cm => {
+        if (!exist.includes(cm.nombre.trim().toLowerCase())) {
+          op.roles[k].push({ id: uid(), nombre: cm.nombre, horasEstimadas: cm.horasEstimadas, estado: 'pendiente', tiempoAcumulado: 0, inicioReal: null, primerInicio: null, alertaDisparada: false });
+          added++;
+        }
+      });
+    });
+    saveToFirebase(); render();
+    showToast(added > 0 ? `Añadidos ${added} montajes` : 'Nada nuevo', added > 0 ? 'ok' : 'warn');
+  });
+
+  $('admin-list').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    let act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+    let ms = montajesActiveAdmin(state.activeRole);
+    if (act === 'reopen') {
+      let m = ms.find(x => x.id === id);
+      if (m && m.estado === 'hecho') { m.estado = 'pausado'; m.alertaDisparada = false; saveToFirebase(); render(); showToast('Montaje desbloqueado', 'ok'); }
+    }
+    else if (act === 'edit') { editingId = id; render(); }
+    else if (act === 'cancel-edit') { editingId = null; render(); }
+    else if (act === 'save-edit') {
+      let m = ms.find(x => x.id === id);
+      if (!m) return;
+      let nEl = document.querySelector('[data-edit-nombre]'), hEl = document.querySelector('[data-edit-horas]');
+      let h = parseNum(hEl.value);
+      if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+      m.nombre = nEl.value.trim() || 'Montaje'; m.horasEstimadas = Math.round(h*100)/100;
+      editingId = null; saveToFirebase(); render();
+    }
+    else if (act === 'del') {
+      if (confirm('¿Borrar montaje de la operación?')) {
+        let op = getActiveAdminOp();
+        op.roles[state.activeRole] = ms.filter(m => m.id !== id);
+        saveToFirebase(); render();
+      }
+    }
+  });
+
+  $('form-add-op-montaje').addEventListener('submit', e => {
+    e.preventDefault();
+    let n = $('add-op-m-nombre').value.trim() || 'Montaje', h = parseNum($('add-op-m-horas').value);
+    if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+    let op = getActiveAdminOp();
+    if (!op.roles[state.activeRole]) op.roles[state.activeRole] = [];
+    op.roles[state.activeRole].push({ id: uid(), nombre: n, horasEstimadas: Math.round(h*100)/100, estado: 'pendiente', tiempoAcumulado: 0, inicioReal: null, primerInicio: null, alertaDisparada: false });
+    $('add-op-m-nombre').value = ''; $('add-op-m-horas').value = '';
+    saveToFirebase(); render();
+  });
+
+  $('op-list').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    let act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+    let ms = montajesActiveOp(state.activeRole);
+    let m = ms.find(x => x.id === id);
+    if (!m) return;
+    if (m.estado === 'hecho') {
+      showToast('🔒 Montaje terminado y bloqueado. Solo el admin puede desbloquearlo.', 'warn');
+      return;
+    }
+
+    if (act === 'start') {
+      let otroMismoUsuario = ms.find(x =>
+        x.estado === 'curso' &&
+        x.id !== id &&
+        (x.porId ? x.porId === currentUser.id : x.por === currentUser.nombre)
+      );
+      const arrancar = () => {
+        if (!m.primerInicio) m.primerInicio = Date.now();
+        if (currentUser) { m.por = currentUser.nombre; m.porId = currentUser.id; }
+        m.inicioReal = Date.now(); m.estado = 'curso';
+        saveToFirebase(); render();
+      };
+      if (otroMismoUsuario) {
+        preguntarDecision(
+          'Ya tienes un montaje en curso',
+          `"${otroMismoUsuario.nombre}" está en marcha (tuyo). ¿Qué haces con él antes de empezar "${m.nombre}"?`,
+          { pausar: '⏸ Pausar el mío y empezar el nuevo', terminar: '✅ Terminar el mío y empezar el nuevo', cancelar: '✕ Cancelar' }
+        ).then(dec => {
+          if (dec === 'cancelar') return;
+          otroMismoUsuario.tiempoAcumulado = segundosDeMontaje(otroMismoUsuario);
+          otroMismoUsuario.inicioReal = null;
+          otroMismoUsuario.estado = (dec === 'terminar') ? 'hecho' : 'pausado';
+          arrancar();
+        });
+        return;
+      }
+      arrancar();
+    } else if (act === 'pause') {
+      if (!esMio(m)) return showToast('Este montaje lo está ejecutando otro compañero', 'warn');
+      m.tiempoAcumulado = segundosDeMontaje(m); m.inicioReal = null; m.estado = 'pausado';
+      saveToFirebase(); render();
+    } else if (act === 'stop') {
+      if (!esMio(m)) return showToast('Este montaje lo está ejecutando otro compañero', 'warn');
+      if (m.estado === 'curso') m.tiempoAcumulado = segundosDeMontaje(m);
+      m.inicioReal = null; m.estado = 'hecho';
+      saveToFirebase(); render();
+    }
+  });
+
+  $('modo-selector').addEventListener('click', e => {
+    let btn = e.target.closest('button[data-modo]');
+    if (!btn) return;
+    let op = getActiveOpOp();
+    if (!op.modos) op.modos = {};
+    let nuevo = btn.getAttribute('data-modo');
+    op.modos[state.activeRole] = nuevo;
+    saveToFirebase(); render();
+    showToast(nuevo === 'manual' ? '✋ Modo manual activado' : '⚡ Modo automático activado', 'ok');
+  });
+
+  $('inf-op').addEventListener('change', function() { infFiltroOp = this.value; renderInformeBody(); });
+  $('inf-usuario').addEventListener('change', function() { infFiltroUsuario = this.value; renderInformeBody(); });
+  $('btn-refresh-inf').addEventListener('click', () => {
+    lastInfHtml = '';
+    renderInformeBody();
+    showToast('Informe actualizado', 'ok');
+  });
+  $('btn-pdf').addEventListener('click', () => {
+    try {
+      const bytes = generarInformePdf();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const d = new Date();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `informe-tiempos-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      showToast('PDF generado', 'ok');
+    } catch (err) {
+      console.error('PDF:', err);
+      showToast('No se pudo generar el PDF', 'bad');
+    }
+  });
+
+  let tickTimer = null, lastStatSec = 0, lastInfSec = 0;
+  function startTick() {
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(() => {
+      if (!state || !currentUser) return;
+      if (checkAutoAdvance()) { saveToFirebase(); render(); return; }
+      if (state.view === 'admin') {
+        let nowA = Math.floor(Date.now() / 1000);
+        if (nowA !== lastInfSec) {
+          lastInfSec = nowA;
+          if (hayCursoGlobal() || nowA % 5 === 0) renderInformeBody();
+        }
+        return;
+      }
+      if (state.view !== 'operario') return;
+
+      let ms = montajesActiveOp(state.activeRole);
+      ms.forEach(m => {
+        if (m.estado === 'curso') {
+          let c = document.querySelector(`[data-live="${m.id}"]`);
+          if (c) c.textContent = fmtCrono(segundosDeMontaje(m));
+          let li = document.querySelector(`[data-mid="${m.id}"]`);
+          if (li) li.classList.toggle('over', (m.horasEstimadas>0 && segundosDeMontaje(m) > m.horasEstimadas*3600+1));
+        }
+      });
+
+      let k = state.activeRole;
+      let totalReal = ms.reduce((s,m) => s + segundosDeMontaje(m), 0);
+      let liveReal = document.querySelector(`[data-live-real="${k}"]`);
+      if (liveReal) liveReal.textContent = fmtCrono(totalReal);
+
+      let nowS = Math.floor(Date.now() / 1000);
+      if (nowS !== lastStatSec) {
+        lastStatSec = nowS;
+        actualizarResumenOp(ms);
+        actualizarTabla(ms);
+      }
+    }, 250);
+  }
+</script>
+</body>
+</html>
