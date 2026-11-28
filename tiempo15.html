@@ -1,0 +1,2273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#090e17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Control personal de tiempo</title>
+<style>
+  :root{
+    color-scheme: dark light;
+    --bg:#090e17; --sidebar:#0f192b; --card:#141e30; --text:#e2e8f0; --muted:#8294b0;
+    --border:#1f2e46; --primary:#06b6d4; --on-primary:#ffffff;
+    --ok:#10b981; --ok-bg:rgba(16,185,129,.15); --warn:#f59e0b; --warn-bg:rgba(245,158,11,.15);
+    --bad:#ef4444; --bad-bg:rgba(239,68,68,.15);
+    --shadow:0 4px 20px rgba(0,0,0,.5);
+    --topbar-h:64px;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:16px; line-height:1.45; overflow-x:hidden; }
+
+  /* ===== TOPBAR ===== */
+  .topbar{ position:fixed; top:0; left:0; right:0; height:var(--topbar-h); display:flex; align-items:center; gap:12px; padding:0 16px; background:var(--sidebar); border-bottom:1px solid var(--border); z-index:100; box-shadow:var(--shadow); }
+  .topbar .btn-menu{ background:transparent; border:none; color:var(--text); font-size:1.6rem; cursor:pointer; padding:8px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+  .topbar .btn-menu:hover{ background:rgba(255,255,255,.05); }
+  .topbar .brand{ display:flex; align-items:center; gap:8px; font-weight:800; font-size:1.1rem; letter-spacing:-.02em; }
+  .topbar .spacer{ flex:1; }
+  .topbar .user-chip{ display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:12px; background:var(--card); border:1px solid var(--border); font-size:.85rem; font-weight:700; }
+  .topbar .user-icon{ background:var(--primary); color:#fff; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.75rem; }
+  .topbar .conn{ width:8px; height:8px; border-radius:50%; background:var(--ok); }
+  .topbar .conn.off{ background:var(--bad); animation:pulse 1.4s infinite; }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:199; opacity:0; visibility:hidden; transition:opacity .3s, visibility .3s; backdrop-filter:blur(2px); }
+  .sidebar-overlay.active{ opacity:1; visibility:visible; }
+  .sidebar{ position:fixed; top:0; left:0; bottom:0; width:280px; background:var(--sidebar); border-right:1px solid var(--border); z-index:200; transform:translateX(-100%); transition:transform .3s cubic-bezier(0.4,0,0.2,1); display:flex; flex-direction:column; overflow-y:auto; }
+  .sidebar.active{ transform:translateX(0); box-shadow:4px 0 24px rgba(0,0,0,.5); }
+  .sidebar-header{ padding:24px 20px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); margin-bottom:10px; }
+  .sidebar-header .logo{ background:var(--primary); color:#fff; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.4rem; }
+  .sidebar-header h2{ margin:0; font-size:1.2rem; font-weight:800; letter-spacing:-.02em; }
+  .sidebar .nav-item{ display:flex; align-items:center; gap:14px; margin:4px 12px; padding:12px 16px; border-radius:12px; cursor:pointer; border:none; background:transparent; color:var(--muted); font:inherit; font-weight:700; font-size:.95rem; text-align:left; width:calc(100% - 24px); transition:all .2s; }
+  .sidebar .nav-item:hover{ background:rgba(255,255,255,.05); color:var(--text); }
+  .sidebar .nav-item.active{ background:var(--primary); color:var(--on-primary); box-shadow:0 4px 12px rgba(6,182,212,.3); }
+  .sidebar .nav-item .ico{ font-size:1.2rem; flex-shrink:0; width:24px; text-align:center; }
+  .sidebar .nav-sep{ height:1px; background:var(--border); margin:12px 20px; }
+  .sidebar .nav-title{ font-size:.7rem; font-weight:800; letter-spacing:.1em; color:var(--muted); text-transform:uppercase; padding:10px 24px 6px; }
+
+  /* ===== MAIN ===== */
+  .main{ padding:calc(var(--topbar-h) + 20px) 16px calc(40px + env(safe-area-inset-bottom)); min-height:100vh; max-width:1200px; margin:0 auto; }
+  .view{ display:none; animation:fadeIn .3s ease; }
+  .view.active{ display:block; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+  .view-head{ margin-bottom:20px; }
+  .view-head h1{ font-size:1.5rem; margin:0; font-weight:800; letter-spacing:-.02em; }
+  .view-head p{ margin:4px 0 0; color:var(--muted); font-size:.9rem; }
+
+  /* ===== CARDS Y GRID ===== */
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .card h2{ font-size:1.1rem; margin:0 0 16px; font-weight:800; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
+
+  /* ===== KPIs ===== */
+  .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:16px; }
+  .kpi{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:var(--shadow); position:relative; overflow:hidden; }
+  .kpi .kpi-ico{ position:absolute; top:12px; right:14px; font-size:1.5rem; opacity:.2; }
+  .kpi .kpi-k{ font-size:.75rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+  .kpi .kpi-v{ font-size:1.8rem; font-weight:800; margin-top:6px; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .kpi .kpi-sub{ font-size:.8rem; color:var(--muted); font-weight:600; margin-top:4px; }
+  .kpi.kpi-primary{ border-color:var(--primary); }
+  .kpi.kpi-primary .kpi-v{ color:var(--primary); }
+  .kpi.kpi-ok{ border-color:var(--ok); background:var(--ok-bg); }
+  .kpi.kpi-ok .kpi-v{ color:var(--ok); }
+  .kpi.kpi-warn{ border-color:var(--warn); background:var(--warn-bg); }
+  .kpi.kpi-warn .kpi-v{ color:var(--warn); }
+  .kpi.kpi-bad{ border-color:var(--bad); background:var(--bad-bg); }
+  .kpi.kpi-bad .kpi-v{ color:var(--bad); }
+
+  /* ===== CRONÓMETRO ACTIVO ===== */
+  .timer-active{ background:linear-gradient(135deg, var(--warn-bg), var(--card)); border:2px solid var(--warn); border-radius:18px; padding:20px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .timer-active .ta-head{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .timer-active .ta-title{ font-weight:800; font-size:1.1rem; }
+  .timer-active .ta-owner{ font-size:.85rem; color:var(--muted); font-weight:600; margin-top:2px; }
+  .timer-active .ta-time{ font-size:2.8rem; font-weight:800; font-variant-numeric:tabular-nums; color:var(--warn); letter-spacing:-.02em; line-height:1; }
+  .timer-active .ta-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+
+  /* ===== FORM ELEMENTS ===== */
+  label.field{ display:flex; flex-direction:column; gap:6px; font-size:.8rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--muted); }
+  input[type="text"], input[type="password"], input[type="time"], input[type="date"], input[type="number"], select{ font:inherit; font-size:1rem; font-weight:500; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--bg); color:var(--text); width:100%; -webkit-appearance:none; appearance:none; transition:border-color .2s; }
+  input:focus, select:focus{ outline:none; border-color:var(--primary); }
+  select{ background-image:linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position:calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size:5px 5px, 5px 5px; background-repeat:no-repeat; padding-right:34px; }
+  input[type="checkbox"]{ accent-color:var(--primary); width:20px; height:20px; }
+  .hint{ margin:10px 0 0; font-size:.85rem; color:var(--muted); }
+  .alert{ padding:12px 14px; border-radius:12px; font-weight:700; font-size:.9rem; border:1px solid var(--border); background:var(--bg); color:var(--text); margin:14px 0 0; }
+  .alert.ok{ background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
+  .alert.bad{ background:var(--bad-bg); color:var(--bad); border-color:var(--bad); }
+  .alert.warn{ background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  .alert:empty{ display:none; }
+
+  /* ===== BOTONES ===== */
+  .btn-primary{ font:inherit; font-size:1rem; font-weight:800; padding:14px 18px; border-radius:12px; border:none; background:var(--primary); color:var(--on-primary); cursor:pointer; transition:opacity .2s; }
+  .btn-primary:active{ opacity:.8; }
+  .btn-secondary{ font:inherit; font-size:.95rem; font-weight:800; padding:12px 16px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; }
+  .btn-mini{ font:inherit; font-size:.82rem; font-weight:800; padding:9px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .btn-mini.danger{ color:var(--bad); border-color:var(--bad); background:transparent; }
+  .btn-mini.danger:active{ background:var(--bad-bg); }
+
+  /* ===== LISTAS ===== */
+  .lista{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .lista > li.muted{ color:var(--muted); font-size:.9rem; padding:10px; text-align:center; }
+  .ops-list{ list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .op-item{ display:flex; align-items:center; gap:8px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--bg); cursor:pointer; transition:all .2s; }
+  .op-item:active{ background:rgba(255,255,255,.05); }
+  .op-item.active{ border-color:var(--primary); background:var(--card); box-shadow:0 0 0 1px var(--primary) inset; }
+  .op-item .op-name{ flex:1; font-weight:700; overflow-wrap:anywhere; }
+  .op-item .op-meta{ font-size:.75rem; color:var(--muted); font-weight:600; white-space:nowrap; }
+  .op-item.editing{ border-color:var(--primary); background:var(--card); cursor:default; }
+  .op-item input{ flex:1; padding:8px 10px; font-size:.9rem; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; }
+
+  /* ===== MONTAJES ===== */
+  .montaje{ display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:14px 16px; border:1px solid var(--border); border-radius:14px; background:var(--bg); transition:all .2s; }
+  .montaje.curso{ border-color:var(--warn); background:var(--warn-bg); box-shadow:0 0 0 1px var(--warn) inset; }
+  .montaje.hecho{ border-color:var(--ok); background:var(--ok-bg); box-shadow:0 0 0 1px var(--ok) inset; cursor:not-allowed; }
+  .montaje.hecho .m-nombre{ color:var(--ok); }
+  .montaje.hecho .m-nombre::after{ content:' 🔒'; font-size:.85em; }
+  .montaje.hecho .btn-play{ opacity:.55; cursor:not-allowed; }
+  .montaje.pausado{ border-color:var(--warn); }
+  .montaje.over{ border-color:var(--bad); background:var(--bad-bg); }
+  .montaje.over .m-crono{ color:var(--bad); }
+  .montaje.editing{ border-color:var(--primary); background:var(--card); }
+  .montaje.ajeno{ opacity:.85; border-style:dashed; }
+
+  .lock-icon{ width:48px; height:48px; border-radius:50%; background:var(--ok); color:#fff; font-size:1.2rem; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .lock-icon.ajeno{ background:var(--muted); }
+  .btn-play{ width:48px; height:48px; border-radius:50%; border:none; background:var(--primary); color:#fff; font-size:1.3rem; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:0; line-height:1; transition:transform .1s; }
+  .btn-play:active{ transform:scale(.95); }
+  .btn-play.pause{ background:var(--warn); }
+  
+  .m-main{ flex:1 1 0; min-width:0; }
+  .m-row1{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .m-nombre{ flex:1 1 0; min-width:0; font-weight:800; overflow-wrap:anywhere; font-size:1.05rem; }
+  .m-crono{ flex-shrink:0; font-variant-numeric:tabular-nums; font-weight:800; font-size:1.2rem; color:var(--muted); }
+  .montaje.curso .m-crono, .montaje.pausado .m-crono{ color:var(--warn); }
+  .montaje.hecho .m-crono{ color:var(--text); }
+  .m-horas{ font-size:.85rem; color:var(--muted); font-weight:600; margin-top:4px; }
+  .m-fechas{ font-size:.85rem; color:var(--muted); font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .m-fechas b{ color:var(--text); font-weight:800; }
+  .m-fechas .warn-text{ color:var(--warn); font-weight:800; }
+  .m-fechas .bad-text{ color:var(--bad); font-weight:800; }
+  .m-acciones{ display:flex; gap:8px; flex-shrink:0; }
+
+  /* ===== BADGES ===== */
+  .badge-estado{ display:inline-block; font-size:.7rem; font-weight:800; padding:2px 8px; border-radius:6px; background:var(--bg); color:var(--muted); border:1px solid var(--border); margin-left:6px; vertical-align:middle; }
+  .badge-estado.curso, .badge-estado.pausado{ background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  .badge-estado.hecho{ background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
+  .badge-over{ display:inline-block; background:var(--bad); color:#fff; padding:2px 8px; border-radius:6px; font-size:.7rem; font-weight:800; margin-left:6px; vertical-align:middle; }
+  .badge-alerta{ display:inline-block; background:var(--warn); color:#fff; padding:2px 8px; border-radius:6px; font-size:.7rem; font-weight:800; margin-left:6px; vertical-align:middle; animation:pulse 1.2s infinite; }
+  .badge-cat{ display:inline-block; background:var(--card); color:var(--muted); padding:2px 8px; border-radius:6px; font-size:.7rem; font-weight:800; margin-left:6px; vertical-align:middle; border:1px solid var(--border); }
+  .badge-dueno{ display:inline-block; background:var(--primary); color:var(--on-primary); font-size:.7rem; font-weight:800; padding:2px 8px; border-radius:6px; margin-left:6px; vertical-align:middle; }
+  .modelo-badge{ display:inline-block; font-size:.7rem; font-weight:800; padding:2px 8px; border-radius:6px; margin-right:8px; vertical-align:middle; background:var(--primary); color:#fff; }
+
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.5; } }
+
+  /* ===== TABS PUESTO ===== */
+  .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px; }
+  .tab{ flex:1 1 auto; min-width:100px; padding:12px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--muted); font:inherit; font-weight:800; font-size:.9rem; cursor:pointer; position:relative; text-align:center; transition:all .2s; }
+  .tab.active{ background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+  .tab .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--warn); margin-left:6px; vertical-align:middle; animation:pulse 1.4s infinite; }
+
+  /* ===== MODE SELECTOR ===== */
+  .modo-ejecucion{ display:flex; gap:8px; margin-bottom:12px; background:var(--bg); padding:4px; border-radius:12px; border:1px solid var(--border); }
+  .modo-btn{ flex:1; padding:12px 10px; border-radius:8px; border:none; background:transparent; color:var(--muted); font:inherit; font-weight:800; font-size:.95rem; cursor:pointer; transition:all .2s; }
+  .modo-btn.active{ background:var(--card); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,.2); }
+
+  /* ===== TABLAS ===== */
+  .tabla-container{ overflow-x:auto; -webkit-overflow-scrolling:touch; margin-top:14px; border-radius:12px; border:1px solid var(--border); }
+  .tabla-tiempos{ width:100%; border-collapse:collapse; font-size:0.85rem; font-variant-numeric:tabular-nums; }
+  .tabla-tiempos th, .tabla-tiempos td{ padding:12px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .tabla-tiempos th{ background:var(--bg); font-size:0.72rem; text-transform:uppercase; color:var(--muted); font-weight:800; letter-spacing:0.05em; text-align:right; }
+  .tabla-tiempos th:first-child{ text-align:left; }
+  .tabla-tiempos td{ text-align:right; color:var(--text); font-weight:600; }
+  .tabla-tiempos td:first-child{ text-align:left; max-width:160px; overflow:hidden; text-overflow:ellipsis; }
+  .tabla-tiempos tr:last-child td{ border-bottom:none; }
+  .tabla-tiempos tfoot tr{ background:var(--bg); font-weight:800; border-top:2px solid var(--border); }
+  .tabla-tiempos tfoot td{ color:var(--text); font-size:0.9rem; }
+  .tabla-tiempos .diff-pos{ color:var(--ok); }
+  .tabla-tiempos .diff-neg{ color:var(--bad); }
+  .tabla-tiempos th.l, .tabla-tiempos td.l{ text-align:left; }
+  .tabla-tiempos tr.f-hecho td{ background:var(--ok-bg); }
+  .tabla-tiempos tr.f-curso td{ background:var(--warn-bg); }
+  #tabla-tiempos th:first-child, #tabla-tiempos td:first-child{ width:40px; max-width:40px; text-align:center; padding-left:4px; padding-right:4px; }
+
+  /* ===== INFORME ===== */
+  .inf-op{ margin:20px 0 10px; font-weight:800; font-size:1.05rem; display:flex; align-items:center; }
+  .inf-puesto{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 12px; margin:16px 0 8px; font-size:.9rem; }
+  .inf-puesto span{ color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; }
+
+  /* ===== ADD FORM ===== */
+  .add-form{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .add-form input, .add-form select{ flex:2 1 160px; }
+  .add-form .input-horas{ flex:1 1 110px; }
+  .add-form .input-modelo{ flex:1 1 110px; max-width:130px; }
+  .add-form .input-pin{ flex:1 1 90px; max-width:110px; }
+  .add-form button{ flex:1 1 100%; }
+
+  .sync-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .sync-row .btn-mini{ flex:1 1 140px; padding:12px 14px; font-size:.9rem; }
+
+  #jornada-tarde-franja[hidden]{ display:none; }
+
+  /* ===== MODAL ===== */
+  #modal-decision{ position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+  #modal-decision[hidden]{ display:none; }
+  #modal-decision .modal-card{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:20px; padding:24px; max-width:420px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,.6); }
+  #modal-decision h3{ margin:0 0 10px; font-size:1.2rem; font-weight:800; }
+  #modal-decision p{ margin:0 0 20px; font-size:.95rem; color:var(--muted); line-height:1.4; }
+  #modal-decision .modal-actions{ display:flex; flex-direction:column; gap:10px; }
+  #modal-decision .modal-actions button{ padding:14px; border-radius:12px; font:inherit; font-weight:800; font-size:1rem; cursor:pointer; border:none; transition:opacity .2s; }
+  #modal-decision .modal-actions button:active{ opacity:.8; }
+  #modal-btn-pausar{ background:var(--warn); color:#fff; }
+  #modal-btn-terminar{ background:var(--ok); color:#fff; }
+  #modal-btn-cancelar{ background:var(--bg); color:var(--text); border:1px solid var(--border) !important; }
+
+  /* ===== LOADING / LOGIN ===== */
+  #loading-screen{ display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:var(--bg); color:var(--text); }
+  .loader{ border:4px solid var(--border); border-top:4px solid var(--primary); border-radius:50%; width:44px; height:44px; animation:spin 1s linear infinite; margin-bottom:20px; }
+  @keyframes spin{ 0%{ transform:rotate(0deg); } 100%{ transform:rotate(360deg); } }
+  #login-screen{ display:none; flex-direction:column; justify-content:center; align-items:center; height:100vh; padding:20px; background:var(--bg); }
+  .login-card{ background:var(--card); padding:32px; border-radius:20px; box-shadow:var(--shadow); width:100%; max-width:400px; text-align:center; border:1px solid var(--border); }
+  .login-card h1{ margin-top:0; color:var(--primary); font-size:1.5rem; }
+  .login-card input{ margin-bottom:16px; text-align:center; font-size:1.2rem; padding:16px; }
+  .login-card button{ width:100%; padding:16px; font-size:1.1rem; }
+
+  /* ===== ALARMA ===== */
+  .alarm-banner{ position:fixed; top:var(--topbar-h); left:0; right:0; padding:16px; background:var(--bad); color:#fff; z-index:9998; display:flex; align-items:center; gap:12px; box-shadow:0 4px 20px rgba(0,0,0,.4); animation:alarmPulse 1s infinite; }
+  .alarm-banner[hidden]{ display:none; }
+  @keyframes alarmPulse{ 0%,100%{ background:var(--bad); } 50%{ background:#dc2626; } }
+  .alarm-icon{ font-size:1.6rem; display:inline-block; animation:shake .4s infinite; }
+  @keyframes shake{ 0%,100%{ transform:rotate(-12deg); } 50%{ transform:rotate(12deg); } }
+  .alarm-text{ flex:1; font-weight:800; font-size:.95rem; overflow-wrap:anywhere; line-height:1.3; }
+  .alarm-btn{ background:#fff; color:var(--bad); border:none; padding:12px 18px; border-radius:10px; font:inherit; font-weight:800; font-size:.95rem; cursor:pointer; flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="loader"></div>
+  <h2 style="margin:0;">Conectando...</h2>
+  <p style="color:var(--muted); font-size:0.9rem;">Sincronizando datos (v2)</p>
+</div>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Control de Tiempos</h1>
+    <p class="hint" style="margin-bottom:24px;">Introduce tu código y PIN</p>
+    <form id="login-form">
+      <input type="text" id="login-codigo" placeholder="Código (ej. 1022)" required autocomplete="off">
+      <input type="password" id="login-pin" placeholder="PIN o contraseña" required>
+      <button type="submit" class="btn-primary">Entrar</button>
+    </form>
+    <div id="login-error" class="alert bad" style="display:none; margin-top:16px; font-size:0.85rem;"></div>
+  </div>
+</div>
+
+<!-- OVERLAY DEL MENÚ LATERAL -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- SIDEBAR TIPO DRAWER -->
+<aside class="sidebar" id="sidebar" style="display:none;">
+  <div class="sidebar-header">
+    <div class="logo" id="sidebar-logo">⚙️</div>
+    <h2 id="sidebar-title">Admin Panel</h2>
+  </div>
+  
+  <div id="admin-nav" style="display:none;">
+    <button type="button" class="nav-item" data-view="admin-informe"><span class="ico">📊</span><span class="lbl">Informe</span></button>
+    <button type="button" class="nav-item" data-view="admin-usuarios"><span class="ico">👥</span><span class="lbl">Usuarios</span></button>
+    <button type="button" class="nav-item" data-view="admin-puestos"><span class="ico">🏭</span><span class="lbl">Puestos</span></button>
+    <button type="button" class="nav-item" data-view="admin-catalogo"><span class="ico">📦</span><span class="lbl">Catálogo</span></button>
+    <button type="button" class="nav-item" data-view="admin-operaciones"><span class="ico">⚙️</span><span class="lbl">Operaciones</span></button>
+    <button type="button" class="nav-item" data-view="admin-modelos"><span class="ico">🏷️</span><span class="lbl">Modelos</span></button>
+    <button type="button" class="nav-item" data-view="admin-jornada"><span class="ico">🕒</span><span class="lbl">Jornada</span></button>
+    <button type="button" class="nav-item" data-view="admin-alarma"><span class="ico">🔔</span><span class="lbl">Alarma</span></button>
+    <button type="button" class="nav-item" data-view="admin-montajes"><span class="ico">🔧</span><span class="lbl">Montajes</span></button>
+  </div>
+
+  <div class="nav-sep"></div>
+  <div class="nav-title">Operario</div>
+  <button type="button" class="nav-item" data-view="operario-montajes"><span class="ico">⏱</span><span class="lbl">Montajes</span></button>
+  <button type="button" class="nav-item" data-view="operario-resumen"><span class="ico">📈</span><span class="lbl">Resumen</span></button>
+  <button type="button" class="nav-item" data-view="operario-tabla"><span class="ico">📋</span><span class="lbl">Tabla tiempos</span></button>
+  
+  <div style="margin-top:auto; padding:20px;">
+    <button type="button" class="btn-mini danger" id="btn-logout" style="width:100%; padding:12px;">Cerrar sesión</button>
+  </div>
+</aside>
+
+<!-- TOPBAR -->
+<header class="topbar" id="topbar" style="display:none;">
+  <button type="button" class="btn-menu" id="btn-menu">☰</button>
+  <div class="brand"><span class="logo">⏱</span><span>Control</span></div>
+  <div class="spacer"></div>
+  <div class="user-chip">
+    <div class="user-icon" id="user-initials">AD</div>
+    <div style="display:flex;flex-direction:column;">
+      <span id="user-email-display" style="line-height:1.1;">—</span>
+      <span style="font-size:.65rem;color:var(--muted);line-height:1.1;" id="user-role-display">Admin</span>
+    </div>
+    <div class="conn" id="conn-dot" style="margin-left:4px;"></div>
+  </div>
+</header>
+
+<!-- ALARMA FLOTANTE -->
+<div id="alarm-banner" class="alarm-banner" hidden role="alert">
+  <span class="alarm-icon">🔔</span>
+  <span class="alarm-text" id="alarm-text">¡Tiempo a punto de terminar!</span>
+  <button type="button" id="alarm-stop" class="alarm-btn">Silenciar</button>
+</div>
+
+<!-- MAIN CONTENT -->
+<main class="main" id="main" style="display:none;">
+
+  <!-- ============ OPERARIO: MONTAJES ============ -->
+  <section class="view" id="view-operario-montajes">
+    <div class="view-head"><h1>Mis montajes</h1><p id="op-subtitle">—</p></div>
+    
+    <div class="card" style="border-color:var(--primary);">
+      <label class="field" style="font-size:.9rem; margin-bottom:8px; color:var(--primary);">1. Selecciona la operación activa</label>
+      <select id="op-selector-op" style="font-size:1.2rem; padding:16px; font-weight:800; border-color:var(--primary);"></select>
+    </div>
+<div class="card">
+  <label class="field" style="font-size:.9rem; margin-bottom:8px; color:var(--muted);">2. Selecciona tu puesto</label>
+  <div class="tabs" id="tabs-operario-selector"></div>
+</div>
+    <div class="kpi-grid" id="op-kpis"></div>
+    <div id="op-timer-active"></div>
+    
+    <div class="card">
+      <h2>2. Montajes del puesto</h2>
+      <div class="modo-ejecucion" id="modo-selector">
+        <button type="button" class="modo-btn" data-modo="auto">⚡ Automático</button>
+        <button type="button" class="modo-btn" data-modo="manual">✋ Manual</button>
+      </div>
+      <p class="hint" id="modo-hint" style="margin:0 0 16px;"></p>
+      <ul class="lista" id="op-list"></ul>
+    </div>
+  </section>
+
+  <!-- ============ OPERARIO: RESUMEN ============ -->
+  <section class="view" id="view-operario-resumen">
+    <div class="view-head"><h1>Resumen</h1><p>Totales del puesto activo.</p></div>
+    <div class="kpi-grid" id="op-resumen-kpis"></div>
+    <div class="grid-2">
+      <div class="card">
+        <h3 style="font-size:.85rem;color:var(--muted);margin:0 0 8px;text-transform:uppercase;">Primer montaje</h3>
+        <div class="kpi" style="padding:0;border:none;box-shadow:none;background:transparent;"><span class="kpi-v" id="op-primer-inicio">—</span><span class="kpi-sub" id="op-primer-inicio-sub"></span></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:.85rem;color:var(--muted);margin:0 0 8px;text-transform:uppercase;">Trabajo real</h3>
+        <div class="kpi" style="padding:0;border:none;box-shadow:none;background:transparent;"><span class="kpi-v" id="op-trabajo-real">—</span><span class="kpi-sub" id="op-trabajo-real-sub"></span></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:.85rem;color:var(--muted);margin:0 0 8px;text-transform:uppercase;">Balance</h3>
+        <div class="kpi" id="op-ahorro-box" style="padding:0;border:none;box-shadow:none;background:transparent;"><span class="kpi-v" id="op-ahorro">—</span><span class="kpi-sub" id="op-ahorro-sub"></span></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:.85rem;color:var(--muted);margin:0 0 8px;text-transform:uppercase;">Quedan</h3>
+        <div class="kpi kpi-primary" style="padding:0;border:none;box-shadow:none;background:transparent;"><span class="kpi-v" id="op-quedan-tiempo">—</span><span class="kpi-sub" id="op-quedan-fecha"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OPERARIO: TABLA ============ -->
+  <section class="view" id="view-operario-tabla">
+    <div class="view-head"><h1>Tabla de tiempos</h1><p>Real, estimado y diferencia por montaje.</p></div>
+    <div class="card">
+      <div class="tabs" id="tabs-operario"></div>
+      <div class="tabla-container">
+        <table class="tabla-tiempos" id="tabla-tiempos">
+          <thead>
+            <tr><th>N.º</th><th>Montaje</th><th>Real</th><th>Estimado</th><th>Diferencia</th></tr>
+          </thead>
+          <tbody id="tabla-tiempos-body"></tbody>
+          <tfoot id="tabla-tiempos-foot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: INFORME ============ -->
+  <section class="view" id="view-admin-informe">
+    <div class="view-head"><h1>Informe de tiempos</h1><p>Filtra por operación y usuario. Exporta a PDF.</p></div>
+    <div class="card">
+      <div class="grid">
+        <label class="field">Operación <select id="inf-op"></select></label>
+        <label class="field">Usuario <select id="inf-usuario"></select></label>
+      </div>
+      <div class="sync-row">
+        <button type="button" class="btn-mini" id="btn-pdf">📄 Exportar PDF</button>
+        <button type="button" class="btn-mini" id="btn-refresh-inf">🔄 Actualizar</button>
+      </div>
+      <div id="informe-body"></div>
+      <p class="hint">Dif. = estimado − real de los montajes terminados (+ ahorro / − exceso).</p>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: USUARIOS ============ -->
+  <section class="view" id="view-admin-usuarios">
+    <div class="view-head"><h1>Usuarios autorizados</h1><p>Crea códigos y PINs para que los operarios entren.</p></div>
+    <div class="card">
+      <ul class="ops-list" id="usuarios-list"></ul>
+      <form class="add-form" id="form-add-usuario" autocomplete="off">
+        <input type="text" id="add-user-nombre" placeholder="Nombre (ej. Juan)" maxlength="30">
+        <input type="text" id="add-user-codigo" placeholder="Código (ej. 1022)" maxlength="10">
+        <input type="password" id="add-user-pin" class="input-pin" placeholder="PIN" maxlength="6">
+        <button type="submit" class="btn-primary">+ Añadir Usuario</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: PUESTOS ============ -->
+  <section class="view" id="view-admin-puestos">
+    <div class="view-head"><h1>Puestos de trabajo</h1><p>Pestañas que aparecen en operario.</p></div>
+    <div class="card">
+      <ul class="ops-list" id="puestos-list"></ul>
+      <form class="add-form" id="form-add-puesto" autocomplete="off">
+        <input type="text" id="add-puesto-nombre" placeholder="Nombre del puesto (ej. Operario 3)" maxlength="30">
+        <button type="submit" class="btn-primary">+ Añadir Puesto</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: MODELOS ============ -->
+  <section class="view" id="view-admin-modelos">
+    <div class="view-head"><h1>Modelos</h1><p>Añade o edita los modelos disponibles (ej. MS3, DC3, MS4).</p></div>
+    <div class="card">
+      <ul class="ops-list" id="modelos-list"></ul>
+      <form class="add-form" id="form-add-modelo" autocomplete="off">
+        <input type="text" id="add-modelo-nombre" placeholder="Nombre del modelo (ej. MS4)" maxlength="20">
+        <button type="submit" class="btn-primary">+ Añadir Modelo</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: CATÁLOGO ============ -->
+  <section class="view" id="view-admin-catalogo">
+    <div class="view-head"><h1>Catálogo de montajes</h1><p>Base por modelo y puesto.</p></div>
+    <div class="card">
+      <div class="modelo-tabs" id="tabs-modelos-catalogo" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
+      <div class="tabs" id="tabs-catalogo"></div>
+      <ul class="lista" id="catalogo-list"></ul>
+      <form class="add-form" id="form-add-catalogo" autocomplete="off">
+        <input type="text" id="cat-nombre" placeholder="Nombre del montaje" maxlength="80">
+        <input type="text" id="cat-horas" class="input-horas" inputmode="decimal" placeholder="Horas est.">
+        <button type="submit" class="btn-primary">+ Añadir al catálogo</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: OPERACIONES ============ -->
+  <section class="view" id="view-admin-operaciones">
+    <div class="view-head"><h1>Operaciones</h1><p>Crea y gestiona las operaciones.</p></div>
+    <div class="card">
+      <ul class="ops-list" id="ops-list"></ul>
+      <form class="add-form" id="form-add-op" autocomplete="off">
+        <input type="text" id="add-op-nombre" placeholder="Nombre de la operación" maxlength="80">
+        <select id="add-op-modelo" class="input-modelo"></select>
+        <button type="submit" class="btn-primary">+ Crear operación</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: JORNADA ============ -->
+  <section class="view" id="view-admin-jornada">
+    <div class="view-head"><h1>Jornada laboral</h1><p>Horario de mañana, tarde y festivos.</p></div>
+    <div class="card">
+      <h2>Mañana</h2>
+      <div class="grid">
+        <label class="field">Inicio mañana <input type="time" id="jornada-inicio"></label>
+        <label class="field">Fin mañana <input type="time" id="jornada-fin"></label>
+      </div>
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <label class="field" style="flex-direction:row; align-items:center; gap:10px; text-transform:none; letter-spacing:0; font-size:.95rem;">
+          <input type="checkbox" id="jornada-tarde-activa">
+          <span style="font-weight:800; color:var(--text);">Jornada de tarde (horas extras)</span>
+        </label>
+        <div class="grid" id="jornada-tarde-franja" style="margin-top:12px;">
+          <label class="field">Inicio tarde <input type="time" id="jornada-tarde-inicio"></label>
+          <label class="field">Fin tarde <input type="time" id="jornada-tarde-fin"></label>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Festivos</h2>
+      <p class="hint" style="margin-top:0; margin-bottom:16px">Días no laborables (no se estiman fines en ellos).</p>
+      <ul class="ops-list" id="festivos-list"></ul>
+      <form class="add-form" id="form-add-festivo" autocomplete="off">
+        <input type="date" id="add-festivo-fecha" style="flex:1 1 160px;">
+        <input type="text" id="add-festivo-nombre" placeholder="Nombre (ej. Navidad)" maxlength="40" style="flex:2 1 180px;">
+        <button type="submit" class="btn-primary">+ Añadir festivo</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: ALARMA ============ -->
+  <section class="view" id="view-admin-alarma">
+    <div class="view-head"><h1>Configuración de Alarma</h1><p>Avisos sonoros y vibración.</p></div>
+    <div class="card">
+      <div style="margin-bottom:16px;">
+        <label class="field" style="flex-direction:row; align-items:center; gap:10px; text-transform:none; letter-spacing:0; font-size:1rem;">
+          <input type="checkbox" id="alarma-activa" style="width:24px;height:24px;">
+          <span style="font-weight:800; color:var(--text);">Activar alarma al llegar al tiempo límite</span>
+        </label>
+      </div>
+      <div class="grid">
+        <label class="field">Avisar cuando queden (minutos)
+          <input type="number" id="alarma-minutos" min="0" max="60" placeholder="Ej. 2">
+        </label>
+        <label class="field">Duración de la alarma (segundos)
+          <input type="number" id="alarma-duracion" min="5" max="300" placeholder="Ej. 30">
+        </label>
+      </div>
+      <div style="margin-top:16px;">
+        <label class="field" style="flex-direction:row; align-items:center; gap:10px; text-transform:none; letter-spacing:0; font-size:1rem;">
+          <input type="checkbox" id="alarma-vibracion" style="width:24px;height:24px;">
+          <span style="font-weight:800; color:var(--text);">Hacer vibrar el dispositivo (si el móvil lo permite)</span>
+        </label>
+      </div>
+      <p class="hint" style="margin-top:20px;">Nota: El sonido sonará si la app está abierta o en primer plano. Los navegadores suspenden el audio si el móvil se bloquea.</p>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN: MONTAJES ============ -->
+  <section class="view" id="view-admin-montajes">
+    <div class="view-head"><h1>Montajes</h1><p id="admin-op-nombre">—</p></div>
+    <div class="card">
+      <label class="field" style="margin-bottom:16px">Operación activa<select id="op-selector-admin"></select></label>
+      <div class="sync-row">
+        <button type="button" class="btn-mini" id="btn-sync-op">⟳ Sincronizar catálogo</button>
+      </div>
+      <div class="tabs" id="tabs-admin" style="margin-top:16px"></div>
+      <ul class="lista" id="admin-list" style="margin-top:16px"></ul>
+      <form class="add-form" id="form-add-op-montaje" autocomplete="off">
+        <input type="text" id="add-op-m-nombre" placeholder="Montaje extra" maxlength="80">
+        <input type="text" id="add-op-m-horas" class="input-horas" inputmode="decimal" placeholder="Horas">
+        <button type="submit" class="btn-primary">+ Añadir solo aquí</button>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<!-- MODAL -->
+<div id="modal-decision" hidden>
+  <div class="modal-card">
+    <h3 id="modal-title">Título</h3>
+    <p id="modal-msg"></p>
+    <div class="modal-actions">
+      <button type="button" id="modal-btn-pausar">⏸ Pausar y continuar</button>
+      <button type="button" id="modal-btn-terminar">✅ Terminar y continuar</button>
+      <button type="button" id="modal-btn-cancelar">✕ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  window.__step = 'html cargado';
+  window.__ready = false;
+  window.__fallo = function (titulo, detalle) {
+    if (window.__ready) return;
+    var ls = document.getElementById('loading-screen');
+    if (!ls) return;
+    ['login-screen', 'topbar', 'sidebar', 'main'].forEach(function (id) { var e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    ls.style.display = 'flex'; ls.style.padding = '20px'; ls.style.textAlign = 'center';
+    ls.innerHTML = '';
+    function add(tag, txt, css) { var e = document.createElement(tag); e.textContent = txt; if (css) e.style.cssText = css; ls.appendChild(e); return e; }
+    add('h2', titulo, 'margin:0 0 8px;');
+    add('p', detalle, 'margin:0 0 8px;max-width:460px;');
+    add('p', 'Paso: ' + window.__step + ' · origen: ' + location.protocol + (navigator.onLine ? ' · con red' : ' · SIN red') + (window.__lastError ? ' · último error: ' + window.__lastError : ''), 'margin:0 0 16px;font-size:.8rem;opacity:.7;');
+    function probe(url, label) {
+      var line = add('p', label + ': probando…', 'margin:0 0 4px;font-size:.8rem;opacity:.85;');
+      var done = false, c = (window.AbortController ? new AbortController() : null);
+      var t = setTimeout(function () { if (!done) { done = true; line.textContent = label + ': ✗ SIN RESPUESTA (bloqueado)'; if (c) c.abort(); } }, 5000);
+      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: c ? c.signal : undefined })
+        .then(function () { if (!done) { done = true; clearTimeout(t); line.textContent = label + ': ✓ accesible'; } })
+        .catch(function () { if (!done) { done = true; clearTimeout(t); line.textContent = label + ': ✗ error de red'; } });
+    }
+    probe('https://identitytoolkit.googleapis.com/', 'Login (identitytoolkit)');
+    probe('https://firestore.googleapis.com/', 'Base de datos (firestore)');
+    probe('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js', 'Scripts (gstatic)');
+    var st = 'font:inherit;font-weight:700;padding:12px 18px;margin:4px;border-radius:12px;border:1px solid #06b6d4;background:#06b6d4;color:#fff;cursor:pointer;';
+    var b1 = add('button', 'Reintentar', st); b1.onclick = function () { location.reload(); };
+    var b2 = add('button', 'Borrar sesión local', st + 'background:transparent;color:inherit;border-color:#888;');
+    b2.onclick = function () { try { localStorage.removeItem('auth_user'); localStorage.removeItem('ui_state'); } catch (e) {} location.reload(); };
+  };
+  setTimeout(function () {
+    window.__fallo('No se pudo conectar', 'La app no recibió respuesta de Firebase en 12 segundos. Puede ser una red que bloquea Google/Firebase, falta de internet o un archivo abierto desde un visor que no ejecuta scripts.');
+  }, 120000);
+  window.addEventListener('error', function (e) {
+    if (window.__ready) return;
+    var t = e.target;
+    if (t && t.tagName === 'SCRIPT' && /gstatic\.com\/firebasejs/.test(t.src || ''))
+      window.__fallo('No se pudo cargar Firebase', 'Revisa la conexión o si la red bloquea gstatic.com.');
+    else window.__lastError = e.message || (t && t.src) || 'error';
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason || {};
+    window.__lastError = r.code || r.message || 'rechazo sin detalle';
+  });
+})();
+</script>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import { getAuth, initializeAuth, inMemoryPersistence, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+  import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, collection, doc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZl9Pim9kRtuu5P4XNMuMZSpe6FzKYI5U",
+    authDomain: "controldetiempo-e7c61.firebaseapp.com",
+    projectId: "controldetiempo-e7c61",
+    storageBucket: "controldetiempo-e7c61.firebasestorage.app",
+    messagingSenderId: "1083059560782",
+    appId: "1:1083059560782:web:27ecb058d8ff23836a7e1f"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  let auth;
+  try { auth = initializeAuth(app, { persistence: inMemoryPersistence }); }
+  catch (e) { console.warn('initializeAuth falló:', e); auth = getAuth(app); }
+
+  let db;
+try {
+  // Usar solo memoria volátil para evitar bloqueos de IndexedDB al recargar en móviles
+  db = initializeFirestore(app, {
+    localCache: memoryLocalCache(),
+    experimentalAutoDetectLongPolling: true
+  });
+} catch (e) { 
+  console.warn('Fallback a getFirestore por:', e); 
+  db = getFirestore(app); 
+}
+ window.__step = 'Firebase inicializado';
+
+  // ESTADO GLOBAL
+  let state = {
+    accesos: [], puestos: [], modelos: ['ms3', 'dc3'],
+    jornadaInicio: '06:45', jornadaFin: '14:30',
+    jornadaTarde: { activa: false, inicio: '16:00', fin: '19:00' },
+    festivos: [], alarma: { activa: true, minutos: 2, duracion: 30, vibracion: true },
+    operaciones: [], catalogo: { ms3: {}, dc3: {} },
+    operacionActivaAdmin: '', operacionActivaOp: '',
+    modeloActivoAdmin: 'ms3', activeRole: 'o1'
+  };
+  
+  let currentUser = null;
+  let unsubscribeOps = null;
+  let unsubscribeConfig = null;
+  let unsubscribeUsers = null;
+  let unsubscribeMontajes = null;
+
+  let editingId = null, editingOpId = null, editingCatId = null;
+  let editingPuestoId = null, pendingDeletePuestoId = null;
+  let editingUserId = null, pendingDeleteUserId = null;
+  let pendingDeleteOpId = null;
+  let pendingDeleteModeloId = null;
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, '0');
+  const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const parseNum = (s) => {
+    if (!s) return NaN;
+    let t = String(s).trim().replace(/\s/g,'').replace(',','.');
+    let n = Number(t);
+    return isFinite(n) ? n : NaN;
+  };
+  const parseTime = (s) => {
+    let m = /^(\d{1,2}):(\d{2})$/.exec(String(s||''));
+    return m ? { h: +m[1], m: +m[2] } : null;
+  };
+  const fmtH = (n) => {
+    if (!isFinite(n)) return '—';
+    let s = n.toFixed(2);
+    if (s.endsWith('0')) s = s.slice(0,-1);
+    if (s.endsWith('0')) s = s.slice(0,-1);
+    if (s.endsWith('.')) s = s.slice(0,-1);
+    return s.replace('.', ',') + ' h';
+  };
+  const fmtH3 = (n) => isFinite(n) ? n.toFixed(3).replace('.', ',') : '—';
+  const fmtCrono = (seg) => {
+    if (!isFinite(seg) || seg < 0) seg = 0;
+    seg = Math.floor(seg + 0.0001);
+    return `${pad(Math.floor(seg/3600))}:${pad(Math.floor((seg%3600)/60))}:${pad(seg%60)}`;
+  };
+  const fmtHReal = (seg) => {
+    if (!isFinite(seg) || seg < 0) seg = 0;
+    seg = Math.round(seg);
+    let h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60), s = seg%60;
+    let parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0 || h > 0) parts.push(m + 'm');
+    if (s > 0 || parts.length === 0) parts.push(s + 's');
+    return parts.join(' ');
+  };
+  const fmtFechaCorta = (d) => ['dom','lun','mar','mié','jue','vie','sáb'][d.getDay()] + ' ' + pad(d.getDate()) + '/' + pad(d.getMonth()+1);
+  const esMismoDia = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+
+  function getModelName(id) { return String(id).toUpperCase(); }
+
+  function showToast(msg, kind) {
+    let t = document.getElementById('app-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'app-toast';
+      t.style.cssText = 'position:fixed;bottom:20px;left:16px;right:16px;max-width:500px;margin:0 auto;padding:14px 18px;border-radius:12px;font-weight:800;font-size:.95rem;z-index:99999;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .3s;pointer-events:none;';
+      document.body.appendChild(t);
+    }
+    t.style.background = kind === 'bad' ? '#ef4444' : (kind === 'ok' ? '#10b981' : '#f59e0b');
+    t.style.color = '#fff';
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(window.__toastTimeout);
+    window.__toastTimeout = setTimeout(() => { t.style.opacity = '0'; }, 3500);
+  }
+
+  function preguntarDecision(titulo, mensaje, textos) {
+    return new Promise(resolve => {
+      const m = $('modal-decision');
+      $('modal-title').textContent = titulo;
+      $('modal-msg').textContent = mensaje;
+      $('modal-btn-pausar').textContent   = (textos && textos.pausar)   || '⏸ Pausar y continuar';
+      $('modal-btn-terminar').textContent = (textos && textos.terminar) || '✅ Terminar y continuar';
+      $('modal-btn-cancelar').textContent = (textos && textos.cancelar) || '✕ Cancelar';
+      m.hidden = false;
+      const close = (v) => { m.hidden = true; resolve(v); };
+      $('modal-btn-pausar').onclick   = () => close('pausar');
+      $('modal-btn-terminar').onclick = () => close('terminar');
+      $('modal-btn-cancelar').onclick = () => close('cancelar');
+    });
+  }
+
+  // ===== AUDIO ALARMA =====
+  let audioCtx = null;
+  let alarmInterval = null;
+  function stopAlarm() {
+    if (alarmInterval) clearInterval(alarmInterval);
+    alarmInterval = null;
+    $('alarm-banner').hidden = true;
+    if (navigator.vibrate) navigator.vibrate(0);
+  }
+  function playAlarm() {
+    const alarma = state.alarma || {};
+    if (!alarma.activa) return;
+    
+    $('alarm-banner').hidden = false;
+    if (alarma.vibracion && navigator.vibrate) {
+      navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
+    }
+    
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      if (alarmInterval) clearInterval(alarmInterval);
+      alarmInterval = setInterval(() => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      }, 500);
+      
+      const duracionMs = (alarma.duracion || 30) * 1000;
+      setTimeout(() => { if (alarmInterval) stopAlarm(); }, duracionMs);
+    } catch(e) { console.warn('Audio no soportado', e); }
+  }
+  $('alarm-stop').onclick = stopAlarm;
+
+  function checkAlarmas() {
+    if (!state || !state.alarma || !state.alarma.activa) return;
+    if (alarmInterval) return; // Ya está sonando
+    
+    let tocaAlarma = false;
+    let op = getActiveOpOp();
+    let k = state.activeRole;
+    let ms = montajesActiveOp(k);
+    
+    ms.forEach(m => {
+      if (m.estado === 'curso' && m.horasEstimadas > 0 && !m.alertaDisparada) {
+        let restante = (m.horasEstimadas * 3600) - segundosDeMontaje(m);
+        if (restante > 0 && restante <= (state.alarma.minutos * 60)) {
+          tocaAlarma = true;
+          m.alertaDisparada = true;
+          updateDoc(doc(db, "montajes", m.id), { alertaDisparada: true });
+          render();
+        }
+      }
+    });
+    if (tocaAlarma) playAlarm();
+  }
+
+  // 1. SINCRONIZACIÓN CON FIREBASE (ARQUITECTURA ESCALABLE)
+  function listenToFirebase() {
+    window.__step = 'cargando datos';
+    
+    // Configuración global
+    if (unsubscribeConfig) unsubscribeConfig();
+    unsubscribeConfig = onSnapshot(doc(db, "config", "global"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        state.puestos = data.puestos || [];
+        state.modelos = data.modelos || ['ms3', 'dc3'];
+        state.jornadaInicio = data.jornadaInicio || '06:45';
+        state.jornadaFin = data.jornadaFin || '14:30';
+        state.jornadaTarde = data.jornadaTarde || { activa: false, inicio: '16:00', fin: '19:00' };
+        state.festivos = data.festivos || [];
+        state.alarma = data.alarma || { activa: true, minutos: 2, duracion: 30, vibracion: true };
+        state.catalogo = data.catalogo || { ms3: {}, dc3: {} };
+        state.modeloActivoAdmin = data.modeloActivoAdmin || 'ms3';
+        fixUi(); render();
+      }
+    });
+
+    // Usuarios
+    if (unsubscribeUsers) unsubscribeUsers();
+    unsubscribeUsers = onSnapshot(collection(db, "usuarios"), (snap) => {
+  state.accesos = [];
+  snap.forEach(d => state.accesos.push(d.data()));
+  
+  // FORZAR EL ARRANQUE: Si ya tenemos datos, quitar pantalla de carga siempre
+  $('loading-screen').style.display = 'none';
+  
+  if (!currentUser) { 
+    $('login-screen').style.display = 'flex'; 
+  } else { 
+    $('login-screen').style.display = 'none';
+    if (!appShown) showApp(); else render(); 
+  }
+});
+
+    // Operaciones
+    if (unsubscribeOps) unsubscribeOps();
+    unsubscribeOps = onSnapshot(collection(db, "operaciones"), (snap) => {
+      state.operaciones = [];
+      snap.forEach(d => state.operaciones.push(d.data()));
+      if (!state.operacionActivaAdmin && state.operaciones.length) state.operacionActivaAdmin = state.operaciones[0].id;
+      if (!state.operacionActivaOp && state.operaciones.length) state.operacionActivaOp = state.operaciones[0].id;
+      fixUi(); render();
+    });
+  }
+
+  function listenToMontajes() {
+    if (unsubscribeMontajes) unsubscribeMontajes();
+    const opId = state.operacionActivaOp;
+    if (!opId) return;
+    
+    // Aquí está la magia: solo escuchamos los montajes de esta operación
+    const q = query(collection(db, "montajes"), where("operacionId", "==", opId));
+    unsubscribeMontajes = onSnapshot(q, (snap) => {
+      state.montajesOp = [];
+      snap.forEach(d => state.montajesOp.push(d.data()));
+      render();
+    });
+  }
+
+  function listenToMontajesAdmin() {
+    if (unsubscribeMontajes) unsubscribeMontajes();
+    const opId = state.operacionActivaAdmin;
+    if (!opId) return;
+    
+    const q = query(collection(db, "montajes"), where("operacionId", "==", opId));
+    unsubscribeMontajes = onSnapshot(q, (snap) => {
+      state.montajesAdmin = [];
+      snap.forEach(d => state.montajesAdmin.push(d.data()));
+      render();
+    });
+  }
+  
+  // SALVAVIDAS: Si la base de datos falla, mostrar error en pantalla en vez de pantalla negra
+window.addEventListener('error', function(e) {
+  const ls = document.getElementById('loading-screen');
+  if (ls && ls.style.display !== 'none') {
+    ls.innerHTML = `<div style="padding:20px; text-align:center; color:#ef4444;">
+      <h2>Error al iniciar</h2>
+      <p style="font-size:14px; color:#e2e8f0; margin-top:10px;">${e.message || 'Error desconocido'}</p>
+      <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:#06b6d4; color:#fff; border:none; border-radius:8px; font-weight:bold;">Reintentar</button>
+    </div>`;
+  }
+});
+
+  // 2. FUNCIONES DE APOYO Y CÁLCULO
+  let ready = false, appShown = false;
+  let activeDash = localStorage.getItem('dash_view') || 'operario-montajes';
+
+  function fixUi() {
+    if (!state.puestos.some(p => p.id === state.activeRole)) state.activeRole = state.puestos[0]?.id || 'o1';
+    if (!state.operaciones.some(o => o.id === state.operacionActivaAdmin)) state.operacionActivaAdmin = state.operaciones[0]?.id || '';
+    if (!state.operaciones.some(o => o.id === state.operacionActivaOp)) state.operacionActivaOp = state.operaciones[0]?.id || '';
+    if (state.view !== 'admin' && state.view !== 'operario') state.view = 'operario';
+  }
+
+  function segundosDeMontaje(m) {
+    if (m.estado === 'curso' && m.inicioReal) return (m.tiempoAcumulado || 0) + (Date.now() - m.inicioReal) / 1000;
+    return m.tiempoAcumulado || 0;
+  }
+
+  function getOpById(opId) { return state.operaciones.find(o => o.id === opId); }
+  function getActiveAdminOp() { return getOpById(state.operacionActivaAdmin) || state.operaciones[0]; }
+  function getActiveOpOp() { return getOpById(state.operacionActivaOp) || state.operaciones[0]; }
+  
+  function montajesActiveOp(k) { 
+    if (!state.montajesOp) return [];
+    return state.montajesOp.filter(m => m.puestoId === k); 
+  }
+  function montajesActiveAdmin(k) { 
+    if (!state.montajesAdmin) return [];
+    return state.montajesAdmin.filter(m => m.puestoId === k); 
+  }
+
+  function catalogoModeloRol(mid, k) { return (state.catalogo[mid] && state.catalogo[mid][k]) ? state.catalogo[mid][k] : []; }
+
+  function esMio(m) {
+    if (!currentUser) return false;
+    if (m.porId) return m.porId === currentUser.id;
+    return m.por === currentUser.nombre;
+  }
+
+  function esFestivo(dt) {
+    if (!state || !Array.isArray(state.festivos) || !state.festivos.length) return false;
+    const key = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    return state.festivos.some(f => f.fecha === key);
+  }
+  function tramosDelDia(dt) {
+    const dia = dt.getDay();
+    if (dia === 0 || dia === 6) return [];
+    if (esFestivo(dt)) return [];
+    const out = [];
+    const mi = parseTime(state.jornadaInicio) || { h: 6, m: 45 };
+    const mf = parseTime(state.jornadaFin) || { h: 14, m: 30 };
+    out.push({ ini: mi.h * 60 + mi.m, fin: mf.h * 60 + mf.m });
+    const jt = state.jornadaTarde;
+    if (jt && jt.activa) {
+      const ti = parseTime(jt.inicio), tf = parseTime(jt.fin);
+      if (ti && tf) {
+        const iniT = ti.h * 60 + ti.m, finT = tf.h * 60 + tf.m;
+        if (iniT >= mf.h * 60 + mf.m && finT > iniT) out.push({ ini: iniT, fin: finT });
+      }
+    }
+    return out;
+  }
+  function sumarTiempoLaboral(desde, segundos) {
+    if (!isFinite(segundos) || segundos <= 0) return new Date(desde);
+    let d = new Date(desde);
+    let restante = Math.round(segundos);
+    let guard = 0;
+    function normalizar(dt) {
+      let g = 0;
+      while (g++ < 2000) {
+        const tramos = tramosDelDia(dt);
+        if (!tramos.length) { dt.setDate(dt.getDate() + 1); dt.setHours(0,0,0,0); continue; }
+        const minActual = dt.getHours()*60 + dt.getMinutes() + dt.getSeconds()/60;
+        const dentro = tramos.some(t => minActual >= t.ini && minActual < t.fin);
+        if (dentro) return dt;
+        const siguiente = tramos.find(t => t.ini > minActual);
+        if (siguiente) { dt.setHours(Math.floor(siguiente.ini/60), siguiente.ini%60, 0, 0); return dt; }
+        dt.setDate(dt.getDate() + 1); dt.setHours(0,0,0,0);
+      }
+      return dt;
+    }
+    d = normalizar(d);
+    while (restante > 0 && guard++ < 10000) {
+      const tramos = tramosDelDia(d);
+      if (!tramos.length) { d.setDate(d.getDate()+1); d.setHours(0,0,0,0); d = normalizar(d); continue; }
+      const minActual = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60;
+      const tramo = tramos.find(t => minActual >= t.ini && minActual < t.fin);
+      if (!tramo) { d = normalizar(d); continue; }
+      const segDisp = Math.max(0, tramo.fin - minActual) * 60;
+      if (restante <= segDisp) { d = new Date(d.getTime() + restante*1000); restante = 0; }
+      else { restante -= Math.round(segDisp); d = new Date(d.getTime() + segDisp*1000); d = normalizar(d); }
+    }
+    return d;
+  }
+  function fmtFinEstimado(dt) {
+    if (!dt) return '—';
+    const hoy = new Date();
+    const hh = pad(dt.getHours()), mm = pad(dt.getMinutes());
+    if (esMismoDia(dt, hoy)) return `${hh}:${mm}`;
+    return `${fmtFechaCorta(dt)} ${hh}:${mm}`;
+  }
+
+  function fechasLine(m) {
+    let e = (m.horasEstimadas||0)*3600;
+    let start = m.primerInicio ? pad(new Date(m.primerInicio).getHours())+':'+pad(new Date(m.primerInicio).getMinutes()) : null;
+    let over = m.estado!=='pendiente' && e>0 && segundosDeMontaje(m)>e+1;
+    let oMin = over ? Math.floor((segundosDeMontaje(m)-e)/60) : 0;
+    if (m.estado==='pendiente') {
+      if (e<=0) return '';
+      let end = sumarTiempoLaboral(new Date(), e);
+      return `Si empiezas ahora: <b>${fmtFinEstimado(end)}</b>`;
+    }
+    if (m.estado==='curso') {
+      let end = e>0 ? sumarTiempoLaboral(new Date(), Math.max(0, e - segundosDeMontaje(m))) : null;
+      return `Inicio <b>${start||'—'}</b> → Est. fin <b>${end?fmtFinEstimado(end):'—'}</b> ${over?`<span class="badge-over">+${oMin}m</span>`:''}`;
+    }
+    if (m.estado==='pausado') return `Inicio <b>${start||'—'}</b> · En pausa ${over?`<span class="badge-over">+${oMin}m</span>`:''}`;
+    if (m.estado==='hecho') {
+      let ganado = Math.floor((e-segundosDeMontaje(m))/60);
+      return `Inicio <b>${start||'—'}</b> · Real ${fmtCrono(segundosDeMontaje(m))} ${over?`<span class="bad-text">(+${oMin}m)</span>`:(ganado>0?`<span class="warn-text">(−${ganado}m)</span>`:'')}`;
+    }
+    return '';
+  }
+
+  // 3. RENDERIZADO
+  function setDashView(v) {
+    activeDash = v;
+    try { localStorage.setItem('dash_view', v); } catch (e) {}
+    closeSidebar();
+    document.querySelectorAll('.sidebar .nav-item').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-view') === v);
+    });
+    document.querySelectorAll('.view').forEach(s => {
+      s.classList.toggle('active', s.id === 'view-' + v);
+    });
+    if (v.startsWith('admin-')) state.view = 'admin';
+    else state.view = 'operario';
+    render();
+  }
+
+  function openSidebar() {
+    $('sidebar').classList.add('active');
+    $('sidebar-overlay').classList.add('active');
+  }
+  function closeSidebar() {
+    $('sidebar').classList.remove('active');
+    $('sidebar-overlay').classList.remove('active');
+  }
+
+  function render() {
+    if (!currentUser) return;
+    const user = currentUser;
+    
+    $('admin-nav').style.display = user.esAdmin ? '' : 'none';
+    $('sidebar-logo').textContent = user.esAdmin ? '⚙️' : '⏱';
+    $('sidebar-title').textContent = user.esAdmin ? 'Admin Panel' : 'Operario';
+
+    if (!user.esAdmin && activeDash.startsWith('admin-')) {
+      activeDash = 'operario-montajes';
+    }
+
+    document.querySelectorAll('.sidebar .nav-item').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-view') === activeDash);
+    });
+    document.querySelectorAll('.view').forEach(s => {
+      s.classList.toggle('active', s.id === 'view-' + activeDash);
+    });
+
+    // Renderizar pestañas de puestos
+    const containers = ['tabs-catalogo', 'tabs-admin', 'tabs-operario'];
+    containers.forEach(id => {
+      let el = $(id);
+      if (!el) return;
+      let html = '';
+      state.puestos.forEach(p => {
+        let isActive = state.activeRole === p.id;
+        let hasTimer = false;
+        if (id === 'tabs-operario' && state.montajesOp) hasTimer = state.montajesOp.some(m => m.puestoId === p.id && m.estado === 'curso');
+        html += `<button type="button" class="tab ${isActive?'active':''}" data-role="${p.id}">${esc(p.nombre)} ${hasTimer ? '<span class="dot"></span>' : ''}</button>`;
+      });
+      el.innerHTML = html;
+    });
+
+  // VISTA OPERARIO
+if (!activeDash.startsWith('admin-')) {
+  // PINTAR EL SELECTOR DE PUESTOS
+  let tabsSel = $('tabs-operario-selector');
+  if (tabsSel) {
+    let htmlTabs = '';
+    state.puestos.forEach(p => {
+      let activo = state.activeRole === p.id;
+      htmlTabs += `<button type="button" class="tab ${activo?'active':''}" data-role-select="${p.id}">${esc(p.nombre)}</button>`;
+    });
+    tabsSel.innerHTML = htmlTabs;
+  }
+
+      let selO = $('op-selector-op');
+      if (selO) {
+        let htmlSelO = '';
+        state.modelos.forEach(mid => {
+          let opsM = state.operaciones.filter(o => o.modeloId === mid);
+          if (opsM.length) {
+            htmlSelO += `<optgroup label="${getModelName(mid)}">`;
+            opsM.forEach(o => { htmlSelO += `<option value="${esc(o.id)}" ${o.id===state.operacionActivaOp?'selected':''}>${esc(o.nombre)}</option>`; });
+            htmlSelO += `</optgroup>`;
+          }
+        });
+        selO.innerHTML = htmlSelO;
+      }
+
+      let k = state.activeRole, op = getActiveOpOp(), ms = montajesActiveOp(k);
+      if (!op) return;
+      
+      let modo = op.modos && op.modos[k] === 'manual' ? 'manual' : 'auto';
+      document.querySelectorAll('#modo-selector .modo-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-modo') === modo));
+      let hintEl = $('modo-hint');
+      if (hintEl) hintEl.textContent = modo === 'auto'
+        ? '⚡ Automático: al llegar al tiempo estimado pasa solo al siguiente montaje.'
+        : '✋ Manual: pulsa ▶ para empezar y ⏹ para terminar cada montaje. Al terminar la tarjeta queda en verde y bloqueada.';
+      let roleName = (state.puestos.find(p => p.id === k) || {}).nombre || 'Puesto';
+
+      let subtitle = $('op-subtitle');
+      if (subtitle) subtitle.textContent = `${getModelName(op.modeloId)} · ${op.nombre} · ${roleName}`;
+
+      let est = ms.reduce((s,m)=>s+(Number(m.horasEstimadas)||0),0);
+      let real = ms.reduce((s,m)=>s+segundosDeMontaje(m),0);
+      let hechos = ms.filter(m=>m.estado==='hecho').length;
+      let pend = ms.filter(m=>m.estado==='pendiente').length;
+      let enCursoArr = ms.filter(m => m.estado === 'curso');
+      let enCursoTodos = enCursoArr.length;
+      
+      let kpis = `
+        <div class="kpi kpi-primary"><span class="kpi-ico">📦</span><span class="kpi-k">Montajes</span><span class="kpi-v">${ms.length}</span><span class="kpi-sub">${fmtH(est)} est.</span></div>
+        <div class="kpi kpi-ok"><span class="kpi-ico">✅</span><span class="kpi-k">Hechos</span><span class="kpi-v">${hechos}</span><span class="kpi-sub">de ${ms.length}</span></div>
+        <div class="kpi kpi-warn"><span class="kpi-ico">⏱</span><span class="kpi-k">En curso</span><span class="kpi-v">${enCursoTodos}</span><span class="kpi-sub">${enCursoArr.map(m=>m.por||'—').join(', ') || '—'}</span></div>
+        <div class="kpi"><span class="kpi-ico">🕐</span><span class="kpi-k">Tiempo real</span><span class="kpi-v" data-live-real="${k}">${fmtCrono(real)}</span><span class="kpi-sub">${pend} pendientes</span></div>
+      `;
+      let kpisEl = $('op-kpis'); if (kpisEl) kpisEl.innerHTML = kpis;
+
+      let miTimer = enCursoArr.find(m => esMio(m));
+      let timerEl = $('op-timer-active');
+      if (timerEl) {
+        if (miTimer) {
+          timerEl.innerHTML = `<div class="timer-active">
+            <div class="ta-head">
+              <div><div class="ta-title">⏱ ${esc(miTimer.nombre)}</div><div class="ta-owner">Ejecutando: ${esc(miTimer.por||'—')}</div></div>
+              <div class="ta-time" data-live="${miTimer.id}">${fmtCrono(segundosDeMontaje(miTimer))}</div>
+            </div>
+            <div class="ta-actions">
+              <button type="button" class="btn-secondary" data-act="pause" data-id="${miTimer.id}">⏸ Pausar</button>
+              <button type="button" class="btn-primary" data-act="stop" data-id="${miTimer.id}" style="background:var(--ok);">⏹ Terminar</button>
+            </div>
+          </div>`;
+        } else {
+          timerEl.innerHTML = '';
+        }
+      }
+
+      let elOp = $('op-list');
+      if (elOp) {
+        if (!ms.length) elOp.innerHTML = `<li class="muted">Sin montajes.</li>`;
+        else {
+          let html = '';
+          ms.forEach(m => {
+            let e = m.horasEstimadas||0, over = m.estado!=='pendiente' && e>0 && segundosDeMontaje(m)>e*3600+1;
+            let mio = esMio(m);
+            let ajenoCurso = (m.estado === 'curso' || m.estado === 'pausado' || m.estado === 'hecho') && m.por && !mio;
+            let cls = `montaje ${m.estado} ${over?'over':''} ${ajenoCurso?'ajeno':''}`;
+            let btn = '', acc = '', cTxt = '—', cAttr = '';
+            let badgeDueno = ajenoCurso ? ` <span class="badge-dueno" title="Ejecutado por ${esc(m.por)}">👤 ${esc(m.por)}</span>` : '';
+
+            if (m.estado==='pendiente') {
+              btn = `<button type="button" class="btn-play" data-act="start" data-id="${m.id}">▶</button>`;
+            } else if (m.estado==='curso') {
+              if (mio) {
+                btn = `<button type="button" class="btn-play pause" data-act="pause" data-id="${m.id}">⏸</button>`;
+                acc = `<button type="button" class="btn-mini" data-act="stop" data-id="${m.id}">⏹</button>`;
+              } else {
+                btn = `<div class="lock-icon ajeno" title="En curso por ${esc(m.por||'otro usuario')}">👤</div>`;
+              }
+              cTxt = fmtCrono(segundosDeMontaje(m)); cAttr = `data-live="${m.id}"`;
+            } else if (m.estado==='pausado') {
+              if (mio || !m.por) {
+                btn = `<button type="button" class="btn-play" data-act="start" data-id="${m.id}">▶</button>`;
+                acc = `<button type="button" class="btn-mini" data-act="stop" data-id="${m.id}">⏹</button>`;
+              } else {
+                btn = `<div class="lock-icon ajeno" title="En pausa por ${esc(m.por||'otro usuario')}">👤</div>`;
+              }
+              cTxt = fmtCrono(segundosDeMontaje(m));
+            } else if (m.estado==='hecho') {
+              btn = `<div class="lock-icon" title="Terminado y bloqueado">🔒</div>`;
+              cTxt = fmtCrono(segundosDeMontaje(m));
+            }
+
+            html += `<li class="${cls}" data-mid="${m.id}">${btn}<div class="m-main"><div class="m-row1"><div class="m-nombre">${esc(m.nombre)}${badgeDueno}</div><div class="m-crono" ${cAttr}>${cTxt}</div></div><div class="m-horas">${fmtH(e)} - ${fmtCrono(e*3600)} est.</div><div class="m-fechas">${fechasLine(m)}</div></div><div class="m-acciones">${acc}</div></li>`;
+          });
+          elOp.innerHTML = html;
+        }
+      }
+
+      let rk = $('op-resumen-kpis');
+      if (rk) {
+        let balance = ms.reduce((b,m) => m.estado==='pendiente'?b:b+((Number(m.horasEstimadas)||0)*3600 - segundosDeMontaje(m)), 0);
+        let esExc = balance < 0;
+        rk.innerHTML = `
+          <div class="kpi kpi-primary"><span class="kpi-ico">📦</span><span class="kpi-k">Montajes</span><span class="kpi-v">${ms.length}</span></div>
+          <div class="kpi kpi-ok"><span class="kpi-ico">✅</span><span class="kpi-k">Hechos</span><span class="kpi-v">${hechos}</span></div>
+          <div class="kpi kpi-warn"><span class="kpi-ico">⏳</span><span class="kpi-k">Pendientes</span><span class="kpi-v">${pend}</span></div>
+          <div class="kpi ${esExc?'kpi-bad':'kpi-ok'}"><span class="kpi-ico">${esExc?'⚠':'💚'}</span><span class="kpi-k">${esExc?'Excedido':'Ahorro'}</span><span class="kpi-v">${Math.abs(balance)<1?'—':fmtH(Math.abs(balance)/3600)}</span></div>
+        `;
+      }
+      
+      // Resumen y Tabla
+      let enCurso = ms.find(m=>m.estado==='curso');
+      const tr = $('op-trabajo-real'); if (tr) tr.textContent = fmtHReal(real);
+      const trs = $('op-trabajo-real-sub'); if (trs) trs.textContent = `de ${fmtH(est)} est.`;
+      
+      let balance = ms.reduce((b,m) => m.estado==='pendiente'?b:b+((Number(m.horasEstimadas)||0)*3600 - segundosDeMontaje(m)), 0);
+      let ahBox = $('op-ahorro-box');
+      if (ahBox) {
+        if (Math.abs(balance) >= 30) {
+          let esExc = balance < 0, absS = Math.abs(balance);
+          ahBox.className = 'kpi ' + (esExc ? 'kpi-bad' : 'kpi-ok');
+          const kEl = ahBox.querySelector('.kpi-k'); if (kEl) kEl.textContent = esExc ? 'Excedido' : 'Ahorro';
+          const vEl = $('op-ahorro'); if (vEl) vEl.textContent = fmtH(absS/3600);
+          const sEl = $('op-ahorro-sub'); if (sEl) sEl.textContent = `- ${fmtCrono(absS)}`;
+        } else {
+          ahBox.className = 'kpi';
+          const kEl = ahBox.querySelector('.kpi-k'); if (kEl) kEl.textContent = 'Balance';
+          const vEl = $('op-ahorro'); if (vEl) vEl.textContent = '—';
+          const sEl = $('op-ahorro-sub'); if (sEl) sEl.textContent = '';
+        }
+      }
+
+      let rem = Math.max(0, ms.reduce((t,m)=>t+((Number(m.horasEstimadas)||0)*3600 - segundosDeMontaje(m)), 0));
+      let hayCurso = !!enCurso;
+      let hayPausa = ms.some(m=>m.estado==='pausado');
+
+      const qt = $('op-quedan-tiempo'), qf = $('op-quedan-fecha');
+      if (qt && qf) {
+        if (!ms.length) { qt.textContent = '—'; qf.textContent = 'Sin montajes'; }
+        else if (rem <= 0 && !hayCurso && !hayPausa) { qt.textContent = 'Todo hecho'; qf.textContent = ''; }
+        else {
+          qt.textContent = fmtH(rem/3600);
+          if (hayCurso) {
+            const nombresCurso = ms.filter(m => m.estado === 'curso').map(m => m.por || m.nombre);
+            qf.textContent = `En curso: ${nombresCurso.join(', ')}`;
+          } else if (hayPausa) qf.textContent = 'En pausa';
+          else {
+            const fin = sumarTiempoLaboral(new Date(), rem);
+            qf.textContent = `Sin iniciar · fin est. ${fmtFinEstimado(fin)}`;
+          }
+        }
+      }
+      
+      actualizarTabla(ms);
+    }
+
+    // VISTA ADMIN
+    if (activeDash.startsWith('admin-') && user.esAdmin) {
+      if (document.activeElement !== $('jornada-inicio')) $('jornada-inicio').value = state.jornadaInicio || '';
+      if (document.activeElement !== $('jornada-fin')) $('jornada-fin').value = state.jornadaFin || '';
+      const jt = state.jornadaTarde || { activa: false, inicio: '16:00', fin: '19:00' };
+      if (document.activeElement !== $('jornada-tarde-activa')) $('jornada-tarde-activa').checked = !!jt.activa;
+      $('jornada-tarde-franja').hidden = !jt.activa;
+      if (document.activeElement !== $('jornada-tarde-inicio')) $('jornada-tarde-inicio').value = jt.inicio || '';
+      if (document.activeElement !== $('jornada-tarde-fin')) $('jornada-tarde-fin').value = jt.fin || '';
+
+      const al = state.alarma || { activa: true, minutos: 2, duracion: 30, vibracion: true };
+      if (document.activeElement !== $('alarma-activa')) $('alarma-activa').checked = !!al.activa;
+      if (document.activeElement !== $('alarma-minutos')) $('alarma-minutos').value = al.minutos;
+      if (document.activeElement !== $('alarma-duracion')) $('alarma-duracion').value = al.duracion;
+      if (document.activeElement !== $('alarma-vibracion')) $('alarma-vibracion').checked = !!al.vibracion;
+
+      let elFest = $('festivos-list');
+      if (elFest) {
+        if (!state.festivos.length) elFest.innerHTML = `<li class="muted">Sin festivos configurados.</li>`;
+        else {
+          let htmlF = '';
+          state.festivos.slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).forEach(f => {
+            htmlF += `<li class="op-item"><span class="op-name"><b>${esc(f.fecha)}</b>${f.nombre ? ' · ' + esc(f.nombre) : ''}</span><button type="button" class="btn-mini danger" data-fest-act="del" data-id="${esc(f.fecha)}">×</button></li>`;
+          });
+          elFest.innerHTML = htmlF;
+        }
+      }
+
+      let elModelos = $('modelos-list');
+      if (elModelos) {
+        let htmlMods = '';
+        state.modelos.forEach(m => {
+          let delBtn = (pendingDeleteModeloId === m) ? `<button type="button" class="btn-mini danger" data-mod-act="del" data-id="${esc(m)}" style="background:var(--bad);color:#fff;">¿Seguro?</button>` : `<button type="button" class="btn-mini danger" data-mod-act="del" data-id="${esc(m)}">×</button>`;
+          htmlMods += `<li class="op-item"><span class="op-name">${esc(getModelName(m))}</span>${delBtn}</li>`;
+        });
+        elModelos.innerHTML = htmlMods || `<li class="muted">Sin modelos.</li>`;
+      }
+
+      let tabsModCat = $('tabs-modelos-catalogo');
+      if (tabsModCat) {
+        let htmlTM = '';
+        state.modelos.forEach(m => {
+          let activo = state.modeloActivoAdmin === m;
+          htmlTM += `<button type="button" class="btn-mini ${activo?'active':''}" data-modelo="${esc(m)}" style="${activo?'background:var(--primary);color:#fff;border-color:var(--primary);':''}">${esc(getModelName(m))}</button>`;
+        });
+        tabsModCat.innerHTML = htmlTM;
+      }
+
+      let selModOp = $('add-op-modelo');
+      if (selModOp) {
+        const prev = selModOp.value;
+        selModOp.innerHTML = state.modelos.map(m => `<option value="${m}">${getModelName(m)}</option>`).join('');
+        if (state.modelos.includes(prev)) selModOp.value = prev;
+      }
+
+      let elUsers = $('usuarios-list');
+      if (elUsers) {
+        let htmlUsers = '';
+        state.accesos.forEach(u => {
+          if (editingUserId === u.id) {
+            htmlUsers += `<li class="op-item editing"><input type="text" data-edit-u-nombre value="${esc(u.nombre)}"><input type="text" data-edit-u-codigo value="${esc(u.codigo)}"><input type="password" data-edit-u-pin value="${esc(u.pin)}"><button type="button" class="btn-mini" data-u-act="save" data-id="${esc(u.id)}">✓</button><button type="button" class="btn-mini danger" data-u-act="cancel" data-id="${esc(u.id)}">✕</button></li>`;
+          } else {
+            let delBtn = (pendingDeleteUserId === u.id) ? `<button type="button" class="btn-mini danger" data-u-act="del" data-id="${esc(u.id)}" style="background:var(--bad);color:#fff;">¿Seguro?</button>` : `<button type="button" class="btn-mini danger" data-u-act="del" data-id="${esc(u.id)}">×</button>`;
+            htmlUsers += `<li class="op-item"><span class="op-name">${esc(u.nombre)} <small style="color:var(--muted)">(${esc(u.codigo)})</small> ${u.esAdmin?'<span class="badge-estado hecho">Admin</span>':''}</span><button type="button" class="btn-mini" data-u-act="edit" data-id="${esc(u.id)}">✏</button>${delBtn}</li>`;
+          }
+        });
+        elUsers.innerHTML = htmlUsers;
+      }
+
+      let elPuestos = $('puestos-list');
+      if (elPuestos) {
+        let htmlPuestos = '';
+        state.puestos.forEach(p => {
+          if (editingPuestoId === p.id) {
+            htmlPuestos += `<li class="op-item editing"><input type="text" data-edit-p-nombre value="${esc(p.nombre)}"><button type="button" class="btn-mini" data-p-act="save" data-id="${esc(p.id)}">✓</button><button type="button" class="btn-mini danger" data-p-act="cancel" data-id="${esc(p.id)}">✕</button></li>`;
+          } else {
+            let delBtn = (pendingDeletePuestoId === p.id) ? `<button type="button" class="btn-mini danger" data-p-act="del" data-id="${esc(p.id)}" style="background:var(--bad);color:#fff;">¿Borrar?</button>` : `<button type="button" class="btn-mini danger" data-p-act="del" data-id="${esc(p.id)}">×</button>`;
+            htmlPuestos += `<li class="op-item"><span class="op-name">${esc(p.nombre)}</span><button type="button" class="btn-mini" data-p-act="edit" data-id="${esc(p.id)}">✏</button>${delBtn}</li>`;
+          }
+        });
+        elPuestos.innerHTML = htmlPuestos;
+      }
+
+      document.querySelectorAll('.modelo-tab').forEach(t => {
+        const activo = t.getAttribute('data-modelo') === state.modeloActivoAdmin;
+        t.style.background = activo ? 'var(--primary)' : 'var(--bg)';
+        t.style.color = activo ? '#fff' : 'var(--text)';
+        t.style.borderColor = activo ? 'var(--primary)' : 'var(--border)';
+      });
+      let mid = state.modeloActivoAdmin, k = state.activeRole, arr = catalogoModeloRol(mid, k), elCat = $('catalogo-list');
+      if (elCat) {
+        if (!arr.length) elCat.innerHTML = `<li class="muted">Sin montajes.</li>`;
+        else {
+          let html = '';
+          arr.forEach(m => {
+            if (editingCatId === m.id) {
+              html += `<li class="montaje editing"><div style="display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0;"><input type="text" data-cat-edit-nombre value="${esc(m.nombre)}"><input type="text" data-cat-edit-horas inputmode="decimal" value="${String(m.horasEstimadas).replace('.', ',')}"></div><div class="m-acciones"><button type="button" class="btn-mini" data-cat-act="save" data-id="${esc(m.id)}">✓</button><button type="button" class="btn-mini danger" data-cat-act="cancel" data-id="${esc(m.id)}">✕</button></div></li>`;
+            } else {
+              html += `<li class="montaje"><div class="m-main"><div class="m-nombre">${esc(m.nombre)} <span class="badge-cat">${getModelName(mid)}</span></div><div class="m-horas">${fmtH(m.horasEstimadas)} - ${fmtCrono(m.horasEstimadas*3600)}</div></div><div class="m-acciones"><button type="button" class="btn-mini" data-cat-act="edit" data-id="${esc(m.id)}">✏</button><button type="button" class="btn-mini danger" data-cat-act="del" data-id="${esc(m.id)}">×</button></div></li>`;
+            }
+          });
+          elCat.innerHTML = html;
+        }
+      }
+
+      let htmlOpsList = '';
+      state.operaciones.forEach(op => {
+        let activa = op.id === state.operacionActivaAdmin;
+        if (editingOpId === op.id) {
+          htmlOpsList += `<li class="op-item editing"><input type="text" data-edit-op-nombre value="${esc(op.nombre)}"><button type="button" class="btn-mini" data-op-act="save" data-id="${esc(op.id)}">✓</button><button type="button" class="btn-mini danger" data-op-act="cancel" data-id="${esc(op.id)}">✕</button></li>`;
+        } else {
+          let delBtn = (pendingDeleteOpId === op.id) ? `<button type="button" class="btn-mini danger" data-op-act="del" data-id="${esc(op.id)}" style="background:var(--bad);color:#fff;">¿Borrar?</button>` : `<button type="button" class="btn-mini danger" data-op-act="del" data-id="${esc(op.id)}">×</button>`;
+          htmlOpsList += `<li class="op-item ${activa?'active':''}" data-op="${esc(op.id)}"><span class="op-name"><span class="modelo-badge">${getModelName(op.modeloId)}</span>${esc(op.nombre)}</span><button type="button" class="btn-mini" data-op-act="edit" data-id="${esc(op.id)}">✏</button>${delBtn}</li>`;
+        }
+      });
+      const opsListEl = $('ops-list'); if (opsListEl) opsListEl.innerHTML = htmlOpsList;
+
+      let selA = $('op-selector-admin');
+      if (selA) {
+        selA.innerHTML = state.operaciones.map(o => `<option value="${esc(o.id)}" ${o.id===state.operacionActivaAdmin?'selected':''}>${getModelName(o.modeloId)} · ${esc(o.nombre)}</option>`).join('');
+        let opAct = getActiveAdminOp();
+        const adminOpEl = $('admin-op-nombre');
+        if (adminOpEl && opAct) adminOpEl.innerHTML = `<span class="modelo-badge">${getModelName(opAct.modeloId)}</span>${esc(opAct.nombre)}`;
+      }
+
+      let msAdmin = montajesActiveAdmin(state.activeRole), elAdmin = $('admin-list');
+      if (elAdmin) {
+        if (!msAdmin.length) elAdmin.innerHTML = `<li class="muted">No hay montajes en esta operación.</li>`;
+        else {
+          let html = '';
+          msAdmin.forEach(m => {
+            let e = m.horasEstimadas || 0, estTxt = e > 0 ? fmtH(e) + ' - ' + fmtCrono(e*3600) : 'Sin estimación';
+            let cronoTxt = m.estado !== 'pendiente' ? fmtCrono(segundosDeMontaje(m)) : '';
+            let alerta = (m.alertaDisparada && m.estado === 'curso') ? ' <span class="badge-alerta">⏰</span>' : '';
+            if (editingId === m.id) {
+              html += `<li class="montaje editing"><div style="display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0;"><input type="text" data-edit-nombre value="${esc(m.nombre)}"><input type="text" data-edit-horas inputmode="decimal" value="${String(e).replace('.', ',')}"></div><div class="m-acciones"><button type="button" class="btn-mini" data-act="save-edit" data-id="${esc(m.id)}">✓</button><button type="button" class="btn-mini danger" data-act="cancel-edit" data-id="${esc(m.id)}">✕</button></div></li>`;
+            } else {
+              let isOver = m.estado!=='pendiente' && e>0 && segundosDeMontaje(m) > e*3600+1;
+              let dueno = (m.por && m.estado !== 'pendiente') ? ` <span class="badge-dueno">👤 ${esc(m.por)}</span>` : '';
+              html += `<li class="montaje ${m.estado} ${isOver?'over':''}"><div class="m-main"><div class="m-row1"><div class="m-nombre">${esc(m.nombre)}${dueno} <span class="badge-estado ${m.estado}">${m.estado}</span>${alerta}</div>${cronoTxt?`<div class="m-crono">${cronoTxt}</div>`:''}</div><div class="m-horas">${estTxt}</div><div class="m-fechas">${fechasLine(m)}</div></div><div class="m-acciones">${m.estado==='hecho' ? `<button type="button" class="btn-mini" data-act="reopen" data-id="${esc(m.id)}" title="Desbloquear">🔓</button>` : ''}<button type="button" class="btn-mini" data-act="edit" data-id="${esc(m.id)}">✏</button><button type="button" class="btn-mini danger" data-act="del" data-id="${esc(m.id)}">×</button></div></li>`;
+            }
+          });
+          elAdmin.innerHTML = html;
+        }
+      }
+
+      populateInformeSelects();
+      renderInformeBody();
+    }
+  }
+
+  function actualizarTabla(ms) {
+    let htmlTb = '', tR=0, tE=0, tD=0;
+    ms.forEach((m, idx) => {
+      let rS = segundosDeMontaje(m), rH = rS/3600, eH = m.horasEstimadas||0, dif = eH - rH;
+      let hasSt = !!m.primerInicio;
+      tR += rH; tE += eH; if(hasSt) tD += dif;
+      let dStr = '—', dCls = '';
+      if (hasSt && eH > 0) {
+        if (dif > 0.0001) { dStr = '+' + fmtH3(dif); dCls = 'diff-pos'; }
+        else if (dif < -0.0001) { dStr = fmtH3(dif); dCls = 'diff-neg'; }
+        else dStr = '0,000';
+      }
+      htmlTb += `<tr><td>${idx+1}</td><td>${esc(m.nombre)}</td><td>${hasSt?fmtH3(rH):'—'}</td><td>${eH>0?fmtH3(eH):'—'}</td><td class="${dCls}">${dStr}</td></tr>`;
+    });
+    const body = $('tabla-tiempos-body'); if (body) body.innerHTML = htmlTb;
+    let tDStr = '0,000', tDCls = '';
+    if (tD > 0.0001) { tDStr = '+' + fmtH3(tD); tDCls = 'diff-pos'; }
+    else if (tD < -0.0001) { tDStr = fmtH3(tD); tDCls = 'diff-neg'; }
+    const foot = $('tabla-tiempos-foot'); if (foot) foot.innerHTML = `<tr><td colspan="2">Totales</td><td>${fmtH3(tR)}</td><td>${fmtH3(tE)}</td><td class="${tDCls}">${tDStr}</td></tr>`;
+  }
+
+  // 4. GESTIÓN DE DATOS (FIREBASE)
+  async function saveConfig() {
+    await setDoc(doc(db, "config", "global"), {
+      puestos: state.puestos,
+      modelos: state.modelos,
+      jornadaInicio: state.jornadaInicio,
+      jornadaFin: state.jornadaFin,
+      jornadaTarde: state.jornadaTarde,
+      festivos: state.festivos,
+      alarma: state.alarma,
+      catalogo: state.catalogo,
+      modeloActivoAdmin: state.modeloActivoAdmin
+    }, { merge: true });
+  }
+
+  async function actualizarMontaje(id, data) {
+    await updateDoc(doc(db, "montajes", id), data);
+  }
+
+  async function borrarMontaje(id) {
+    await deleteDoc(doc(db, "montajes", id));
+  }
+
+  // 5. EVENTOS DE LA INTERFAZ
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    let cod = $('login-codigo').value.trim();
+    let pin = $('login-pin').value.trim();
+    $('login-error').style.display = 'none';
+
+    let user = state.accesos.find(u => u.codigo === cod && u.pin === pin);
+    if (user) {
+      currentUser = user;
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      showApp(true);
+    } else {
+      $('login-error').textContent = "Código o PIN incorrectos.";
+      $('login-error').style.display = 'block';
+    }
+  });
+
+  function showApp(fresh) {
+    appShown = true;
+    $('loading-screen').style.display = 'none';
+    $('login-screen').style.display = 'none';
+    $('topbar').style.display = 'flex';
+    $('sidebar').style.display = 'flex';
+    $('main').style.display = 'block';
+    
+    $('user-email-display').textContent = currentUser.nombre;
+    $('user-role-display').textContent = currentUser.esAdmin ? 'Admin' : 'Operario';
+    $('user-initials').textContent = (currentUser.nombre || 'U').substring(0,2).toUpperCase();
+
+    if (currentUser.esAdmin) {
+      if (!activeDash.startsWith('admin-')) activeDash = 'admin-informe';
+      listenToMontajesAdmin();
+    } else {
+      if (activeDash.startsWith('admin-')) activeDash = 'operario-montajes';
+      listenToMontajes();
+    }
+
+    setDashView(activeDash);
+    startTick();
+  }
+
+  $('btn-menu').addEventListener('click', openSidebar);
+  $('sidebar-overlay').addEventListener('click', closeSidebar);
+
+  $('sidebar').addEventListener('click', e => {
+    const b = e.target.closest('.nav-item');
+    if (!b) return;
+    const v = b.getAttribute('data-view');
+    if (!v) return;
+    if (v.startsWith('admin-') && !currentUser.esAdmin) return showToast('No eres admin', 'bad');
+    setDashView(v);
+  });
+
+  document.addEventListener('change', e => {
+    if (e.target && e.target.id === 'op-selector-op') {
+      state.operacionActivaOp = e.target.value;
+      listenToMontajes();
+      render();
+    }
+    if (e.target && e.target.id === 'op-selector-admin') {
+      state.operacionActivaAdmin = e.target.value;
+      listenToMontajesAdmin();
+      render();
+    }
+    if (e.target.id === 'jornada-inicio') { if (parseTime(e.target.value)) { state.jornadaInicio = e.target.value; saveConfig(); } }
+    if (e.target.id === 'jornada-fin') { if (parseTime(e.target.value)) { state.jornadaFin = e.target.value; saveConfig(); } }
+    if (e.target.id === 'jornada-tarde-activa') { state.jornadaTarde.activa = e.target.checked; saveConfig(); render(); }
+    if (e.target.id === 'jornada-tarde-inicio') { if (parseTime(e.target.value)) { state.jornadaTarde.inicio = e.target.value; saveConfig(); } }
+    if (e.target.id === 'jornada-tarde-fin') { if (parseTime(e.target.value)) { state.jornadaTarde.fin = e.target.value; saveConfig(); } }
+    if (e.target.id === 'alarma-activa') { state.alarma.activa = e.target.checked; saveConfig(); }
+    if (e.target.id === 'alarma-minutos') { state.alarma.minutos = parseInt(e.target.value, 10) || 0; saveConfig(); }
+    if (e.target.id === 'alarma-duracion') { state.alarma.duracion = parseInt(e.target.value, 10) || 30; saveConfig(); }
+    if (e.target.id === 'alarma-vibracion') { state.alarma.vibracion = e.target.checked; saveConfig(); }
+    if (e.target.id === 'inf-op') { infFiltroOp = e.target.value; renderInformeBody(); }
+    if (e.target.id === 'inf-usuario') { infFiltroUsuario = e.target.value; renderInformeBody(); }
+  });
+
+  document.addEventListener('submit', async e => {
+    const form = e.target;
+    if (!form || !form.id) return;
+
+    if (form.id === 'form-add-usuario') {
+      e.preventDefault();
+      let n = $('add-user-nombre').value.trim();
+      let c = $('add-user-codigo').value.trim();
+      let p = $('add-user-pin').value.trim();
+      if (!c || !p) return showToast("Código y PIN obligatorios", "bad");
+      if (state.accesos.some(u => u.codigo === c)) return showToast("Ese código ya existe", "bad");
+      await setDoc(doc(db, "usuarios", uid()), { id: uid(), nombre: n || 'Operario', codigo: c, pin: p, esAdmin: false });
+      $('add-user-nombre').value = ''; $('add-user-codigo').value = ''; $('add-user-pin').value = '';
+      showToast("Usuario añadido", "ok");
+    }
+    if (form.id === 'form-add-puesto') {
+      e.preventDefault();
+      let nombre = $('add-puesto-nombre').value.trim();
+      if (!nombre) return;
+      let newId = uid();
+      state.puestos.push({ id: newId, nombre });
+      state.modelos.forEach(m => { if (!state.catalogo[m]) state.catalogo[m] = {}; state.catalogo[m][newId] = []; });
+      $('add-puesto-nombre').value = '';
+      saveConfig(); render(); showToast("Puesto añadido", "ok");
+    }
+    if (form.id === 'form-add-modelo') {
+      e.preventDefault();
+      let m = $('add-modelo-nombre').value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!m) return showToast("Nombre inválido", "bad");
+      if (state.modelos.includes(m)) return showToast("Ese modelo ya existe", "bad");
+      state.modelos.push(m);
+      state.catalogo[m] = {};
+      state.puestos.forEach(p => state.catalogo[m][p.id] = []);
+      $('add-modelo-nombre').value = '';
+      saveConfig(); render(); showToast("Modelo añadido", "ok");
+    }
+    if (form.id === 'form-add-catalogo') {
+      e.preventDefault();
+      let n = $('cat-nombre').value.trim(), h = parseNum($('cat-horas').value);
+      if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+      if (!state.catalogo[state.modeloActivoAdmin][state.activeRole]) state.catalogo[state.modeloActivoAdmin][state.activeRole] = [];
+      state.catalogo[state.modeloActivoAdmin][state.activeRole].push({ id: uid(), nombre: n || 'Montaje', horasEstimadas: Math.round(h*100)/100 });
+      $('cat-nombre').value = ''; $('cat-horas').value = '';
+      saveConfig(); render();
+    }
+    if (form.id === 'form-add-op') {
+      e.preventDefault();
+      let n = $('add-op-nombre').value.trim(), mid = $('add-op-modelo').value;
+      if (!n) return;
+      let rolesInit = {}, modosInit = {};
+      state.puestos.forEach(p => { rolesInit[p.id] = []; modosInit[p.id] = 'auto'; });
+      const newOp = { id: uid(), nombre: n, modeloId: mid, modos: modosInit, roles: rolesInit };
+      await setDoc(doc(db, "operaciones", newOp.id), newOp);
+      state.operacionActivaAdmin = newOp.id;
+      $('add-op-nombre').value = '';
+      render();
+    }
+    if (form.id === 'form-add-festivo') {
+      e.preventDefault();
+      const fecha = $('add-festivo-fecha').value;
+      const nombre = $('add-festivo-nombre').value.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return showToast('Fecha inválida', 'bad');
+      if (state.festivos.some(f => f.fecha === fecha)) return showToast('Ese día ya está como festivo', 'bad');
+      state.festivos.push({ id: fecha, fecha, nombre });
+      $('add-festivo-fecha').value = ''; $('add-festivo-nombre').value = '';
+      saveConfig(); render(); showToast('Festivo añadido', 'ok');
+    }
+    if (form.id === 'form-add-op-montaje') {
+      e.preventDefault();
+      let n = $('add-op-m-nombre').value.trim() || 'Montaje', h = parseNum($('add-op-m-horas').value);
+      if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+      let op = getActiveAdminOp();
+      let newM = { id: uid(), operacionId: op.id, puestoId: state.activeRole, nombre: n, horasEstimadas: Math.round(h*100)/100, estado: 'pendiente', tiempoAcumulado: 0, inicioReal: null, primerInicio: null, alertaDisparada: false };
+      await setDoc(doc(db, "montajes", newM.id), newM);
+      $('add-op-m-nombre').value = ''; $('add-op-m-horas').value = '';
+      render();
+    }
+  });
+
+  document.addEventListener('click', async e => {
+  // NUEVO: Cambiar de puesto en la vista de operario
+  const roleBtn = e.target.closest('button[data-role-select]');
+  if (roleBtn) {
+    state.activeRole = roleBtn.getAttribute('data-role-select');
+    render();
+    return;
+  }
+  
+
+  // Manejar clic en las pestañas de puestos (Operario 1, Operario 2...)
+const tab = e.target.closest('.tab');
+if (tab && tab.hasAttribute('data-role') && (tab.closest('#tabs-catalogo') || tab.closest('#tabs-admin'))) {
+  state.activeRole = tab.getAttribute('data-role');
+  editingCatId = null;
+  render();
+  return;
+}
+  // Nav
+    let btn = e.target.closest('button[data-u-act]');
+    if (btn) {
+      const act = btn.getAttribute('data-u-act'), id = btn.getAttribute('data-id');
+      if (act === 'edit') { editingUserId = id; render(); return; }
+      if (act === 'cancel') { editingUserId = null; render(); return; }
+      if (act === 'save') {
+        let u = state.accesos.find(x => x.id === id);
+        if (u) {
+          let nn = document.querySelector('[data-edit-u-nombre]').value.trim() || 'Operario';
+          let cc = document.querySelector('[data-edit-u-codigo]').value.trim();
+          let pp = document.querySelector('[data-edit-u-pin]').value.trim();
+          if (!cc || !pp) return showToast("Código y PIN obligatorios", "bad");
+          if (state.accesos.some(x => x.id !== id && x.codigo === cc)) return showToast("Ese código ya existe", "bad");
+          u.nombre = nn; u.codigo = cc; u.pin = pp;
+          await setDoc(doc(db, "usuarios", id), u);
+          editingUserId = null; render();
+        }
+        return;
+      }
+      if (act === 'del') {
+        if (state.accesos.length === 1) return showToast("No puedes borrar el último usuario", "bad");
+        let objetivo = state.accesos.find(u => u.id === id);
+        if (objetivo && objetivo.esAdmin && state.accesos.filter(u => u.esAdmin).length === 1) return showToast("No puedes borrar al único administrador", "bad");
+        if (pendingDeleteUserId !== id) {
+          pendingDeleteUserId = id; render();
+          setTimeout(() => { pendingDeleteUserId = null; render(); }, 4000);
+          showToast('Pulsa × otra vez para confirmar', 'warn');
+        } else {
+          pendingDeleteUserId = null;
+          await deleteDoc(doc(db, "usuarios", id));
+          render();
+        }
+        return;
+      }
+    }
+
+    btn = e.target.closest('button[data-p-act]');
+    if (btn) {
+      const act = btn.getAttribute('data-p-act'), id = btn.getAttribute('data-id');
+      if (act === 'edit') { editingPuestoId = id; render(); return; }
+      if (act === 'cancel') { editingPuestoId = null; render(); return; }
+      if (act === 'save') {
+        let p = state.puestos.find(x => x.id === id);
+        if (p) { p.nombre = document.querySelector('[data-edit-p-nombre]').value.trim() || 'Puesto'; editingPuestoId = null; saveConfig(); render(); }
+        return;
+      }
+      if (act === 'del') {
+        if (state.puestos.length === 1) return showToast("No puedes borrar el último puesto", "bad");
+        if (pendingDeletePuestoId !== id) {
+          pendingDeletePuestoId = id; render();
+          setTimeout(() => { pendingDeletePuestoId = null; render(); }, 4000);
+          showToast('Pulsa × otra vez para confirmar', 'warn');
+        } else {
+          pendingDeletePuestoId = null;
+          state.puestos = state.puestos.filter(p => p.id !== id);
+          state.modelos.forEach(m => { if (state.catalogo[m]) delete state.catalogo[m][id]; });
+          saveConfig(); render();
+        }
+        return;
+      }
+    }
+
+    btn = e.target.closest('button[data-mod-act]');
+    if (btn) {
+      const act = btn.getAttribute('data-mod-act'), id = btn.getAttribute('data-id');
+      if (act === 'del') {
+        if (state.modelos.length <= 1) return showToast("Debe haber al menos un modelo", "bad");
+        if (state.operaciones.some(o => o.modeloId === id)) return showToast("No puedes borrar un modelo que tiene operaciones asignadas", "bad");
+        if (pendingDeleteModeloId !== id) {
+          pendingDeleteModeloId = id; render();
+          setTimeout(() => { pendingDeleteModeloId = null; render(); }, 4000);
+          showToast('Pulsa × otra vez para confirmar', 'warn');
+        } else {
+          pendingDeleteModeloId = null;
+          state.modelos = state.modelos.filter(m => m !== id);
+          delete state.catalogo[id];
+          if (state.modeloActivoAdmin === id) state.modeloActivoAdmin = state.modelos[0];
+          saveConfig(); render(); showToast("Modelo eliminado", "ok");
+        }
+        return;
+      }
+    }
+
+    btn = e.target.closest('button[data-cat-act]');
+    if (btn) {
+      const act = btn.getAttribute('data-cat-act'), id = btn.getAttribute('data-id');
+      const mid = state.modeloActivoAdmin, k = state.activeRole;
+      let arr = state.catalogo[mid][k] || [];
+      if (act === 'edit') { editingCatId = id; render(); return; }
+      if (act === 'cancel') { editingCatId = null; render(); return; }
+      if (act === 'del') {
+        if (confirm('¿Borrar montaje del catálogo?')) { state.catalogo[mid][k] = arr.filter(m => m.id !== id); saveConfig(); render(); }
+        return;
+      }
+      if (act === 'save') {
+        let m = arr.find(x => x.id === id);
+        if (!m) return;
+        let nEl = document.querySelector('[data-cat-edit-nombre]'), hEl = document.querySelector('[data-cat-edit-horas]');
+        let h = parseNum(hEl.value);
+        if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+        m.nombre = nEl.value.trim() || 'Montaje'; m.horasEstimadas = Math.round(h*100)/100;
+        editingCatId = null; saveConfig(); render();
+        return;
+      }
+    }
+
+    btn = e.target.closest('button[data-op-act]');
+    if (btn) {
+      const act = btn.getAttribute('data-op-act'), id = btn.getAttribute('data-id');
+      if (act === 'edit') { editingOpId = id; render(); return; }
+      if (act === 'cancel') { editingOpId = null; render(); return; }
+      if (act === 'save') {
+        let inp = document.querySelector('[data-edit-op-nombre]'), op = getOpById(id);
+        if (inp && op) { op.nombre = inp.value.trim() || 'Operación'; await setDoc(doc(db, "operaciones", id), op); editingOpId = null; render(); }
+        return;
+      }
+      if (act === 'del') {
+        if (state.operaciones.length === 1) return showToast("No puedes borrar la única operación", "bad");
+        if (pendingDeleteOpId !== id) {
+          pendingDeleteOpId = id; render();
+          setTimeout(() => { pendingDeleteOpId = null; render(); }, 4000);
+          showToast('Pulsa × otra vez para confirmar', 'warn');
+        } else {
+          pendingDeleteOpId = null;
+          await deleteDoc(doc(db, "operaciones", id));
+          if (state.operacionActivaAdmin === id) state.operacionActivaAdmin = state.operaciones[0].id;
+          if (state.operacionActivaOp === id) state.operacionActivaOp = state.operaciones[0].id;
+          render();
+        }
+        return;
+      }
+    }
+    const opItem = e.target.closest('.op-item');
+    if (opItem && !opItem.classList.contains('editing') && opItem.closest('#ops-list')) {
+      const opId = opItem.getAttribute('data-op');
+      if (opId) { state.operacionActivaAdmin = opId; listenToMontajesAdmin(); render(); }
+    }
+
+    btn = e.target.closest('button[data-act]');
+    if (btn && btn.closest('#admin-list')) {
+      const act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+      let ms = montajesActiveAdmin(state.activeRole);
+      if (act === 'reopen') {
+        let m = ms.find(x => x.id === id);
+        if (m && m.estado === 'hecho') { await actualizarMontaje(id, { estado: 'pausado', alertaDisparada: false }); showToast('Montaje desbloqueado', 'ok'); }
+        return;
+      }
+      if (act === 'edit') { editingId = id; render(); return; }
+      if (act === 'cancel-edit') { editingId = null; render(); return; }
+      if (act === 'save-edit') {
+        let m = ms.find(x => x.id === id);
+        if (!m) return;
+        let nEl = document.querySelector('[data-edit-nombre]'), hEl = document.querySelector('[data-edit-horas]');
+        let h = parseNum(hEl.value);
+        if (!isFinite(h) || h < 0) return showToast("Horas inválidas", "bad");
+        await actualizarMontaje(id, { nombre: nEl.value.trim() || 'Montaje', horasEstimadas: Math.round(h*100)/100 });
+        editingId = null; render();
+        return;
+      }
+      if (act === 'del') {
+        if (confirm('¿Borrar montaje de la operación?')) { await borrarMontaje(id); render(); }
+        return;
+      }
+    }
+
+    btn = e.target.closest('#btn-sync-op');
+    if (btn) {
+      let op = getActiveAdminOp(), added = 0;
+      state.puestos.forEach(p => {
+        let k = p.id;
+        let exist = state.montajesAdmin.filter(m => m.puestoId === k).map(m => m.nombre.trim().toLowerCase());
+        catalogoModeloRol(op.modeloId, k).forEach(cm => {
+          if (!exist.includes(cm.nombre.trim().toLowerCase())) {
+            let newM = { id: uid(), operacionId: op.id, puestoId: k, nombre: cm.nombre, horasEstimadas: cm.horasEstimadas, estado: 'pendiente', tiempoAcumulado: 0, inicioReal: null, primerInicio: null, alertaDisparada: false };
+            setDoc(doc(db, "montajes", newM.id), newM);
+            added++;
+          }
+        });
+      });
+      setTimeout(() => showToast(added > 0 ? `Añadidos ${added} montajes` : 'Nada nuevo', added > 0 ? 'ok' : 'warn'), 500);
+      return;
+    }
+
+    btn = e.target.closest('button[data-fest-act]');
+    if (btn && btn.getAttribute('data-fest-act') === 'del') {
+      const id = btn.getAttribute('data-id');
+      state.festivos = state.festivos.filter(f => f.id !== id);
+      saveConfig(); render(); showToast('Festivo eliminado', 'ok');
+      return;
+    }
+
+    if (e.target.closest('#btn-pdf')) {
+      try {
+        const bytes = generarInformePdf();
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const d = new Date();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `informe-tiempos-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.pdf`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+        showToast('PDF generado', 'ok');
+      } catch (err) { console.error('PDF:', err); showToast('No se pudo generar el PDF', 'bad'); }
+      return;
+    }
+    if (e.target.closest('#btn-refresh-inf')) {
+      lastInfHtml = '';
+      renderInformeBody();
+      showToast('Informe actualizado', 'ok');
+      return;
+    }
+
+    btn = e.target.closest('button[data-modelo]');
+    if (btn && btn.closest('#view-admin-catalogo')) {
+      state.modeloActivoAdmin = btn.getAttribute('data-modelo');
+      editingCatId = null; saveConfig(); render();
+      return;
+    }
+
+    // Acciones operario
+    btn = e.target.closest('button[data-act]');
+    if (btn && (btn.closest('#op-list') || btn.closest('#op-timer-active'))) {
+      const act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+      let ms = montajesActiveOp(state.activeRole);
+      let m = ms.find(x => x.id === id);
+      if (!m) return;
+      if (m.estado === 'hecho') { showToast('🔒 Montaje terminado y bloqueado. Solo el admin puede desbloquearlo.', 'warn'); return; }
+
+      if (act === 'start') {
+        let otroMismoUsuario = ms.find(x =>
+          x.estado === 'curso' && x.id !== id &&
+          (x.porId ? x.porId === currentUser.id : x.por === currentUser.nombre)
+        );
+        const arrancar = async () => {
+          let data = { estado: 'curso', inicioReal: Date.now(), por: currentUser.nombre, porId: currentUser.id };
+          if (!m.primerInicio) data.primerInicio = Date.now();
+          await actualizarMontaje(id, data);
+        };
+        if (otroMismoUsuario) {
+          preguntarDecision(
+            'Ya tienes un montaje en curso',
+            `"${otroMismoUsuario.nombre}" está en marcha (tuyo). ¿Qué haces con él antes de empezar "${m.nombre}"?`,
+            { pausar: '⏸ Pausar el mío y empezar el nuevo', terminar: '✅ Terminar el mío y empezar el nuevo', cancelar: '✕ Cancelar' }
+          ).then(async dec => {
+            if (dec === 'cancelar') return;
+            let tAcum = segundosDeMontaje(otroMismoUsuario);
+            await actualizarMontaje(otroMismoUsuario.id, { estado: dec === 'terminar' ? 'hecho' : 'pausado', tiempoAcumulado: tAcum, inicioReal: null });
+            arrancar();
+          });
+          return;
+        }
+        arrancar();
+      } else if (act === 'pause') {
+        if (!esMio(m)) return showToast('Este montaje lo está ejecutando otro compañero', 'warn');
+        await actualizarMontaje(id, { estado: 'pausado', tiempoAcumulado: segundosDeMontaje(m), inicioReal: null });
+      } else if (act === 'stop') {
+        if (!esMio(m)) return showToast('Este montaje lo está ejecutando otro compañero', 'warn');
+        let tAcum = m.estado === 'curso' ? segundosDeMontaje(m) : m.tiempoAcumulado;
+        await actualizarMontaje(id, { estado: 'hecho', tiempoAcumulado: tAcum, inicioReal: null });
+      }
+      return;
+    }
+  });
+
+  // Inicialización
+  window.__step = 'autenticando';
+  Promise.race([
+    signInAnonymously(auth),
+    new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 8000))
+  ]).then(() => {
+    window.__step = 'autenticado';
+    try {
+      const saved = localStorage.getItem('auth_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u && u.id) currentUser = u; else localStorage.removeItem('auth_user');
+      }
+    } catch (e) { localStorage.removeItem('auth_user'); currentUser = null; }
+    listenToFirebase();
+  }).catch(err => {
+    console.error("Error auth anónimo:", err);
+    const code = (err && err.code) ? err.code : '';
+    let hint = 'Revisa tu internet.';
+    if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation')
+      hint = 'Activa el proveedor "Anónimo" en Firebase.';
+    else if (code === 'auth/network-request-failed') hint = 'Sin conexión o red bloqueada.';
+    else if (code === 'timeout') hint = 'El servicio de login no responde en 8 s.';
+    window.__fallo('Error de autenticación', hint + (code ? ' (' + code + ')' : ''));
+  });
+
+  $('btn-logout').addEventListener('click', async () => {
+    if (!currentUser) return;
+    let op = getActiveOpOp();
+    let k = state.activeRole;
+    let ms = montajesActiveOp(k);
+    let enCurso = ms.filter(m => m.estado === 'curso' && esMio(m));
+    
+    if (!enCurso.length) {
+      if (confirm('¿Seguro que quieres cerrar sesión?')) {
+        localStorage.removeItem('auth_user');
+        window.location.reload();
+      }
+      return;
+    }
+    const nombres = enCurso.map(m => `"${m.nombre}"`).join(', ');
+    const dec = await preguntarDecision(
+      enCurso.length === 1 ? 'Tienes un montaje en curso' : 'Tienes montajes en curso',
+      `${nombres} en marcha. ¿Qué haces antes de salir?`,
+      { pausar: '⏸ Pausar y salir', terminar: '✅ Terminar y salir', cancelar: '✕ Cancelar (seguir aquí)' }
+    );
+    if (dec === 'cancelar') return;
+    
+    for (let m of enCurso) {
+      await actualizarMontaje(m.id, { estado: dec === 'terminar' ? 'hecho' : 'pausado', tiempoAcumulado: segundosDeMontaje(m), inicioReal: null });
+    }
+    localStorage.removeItem('auth_user');
+    window.location.reload();
+  });
+
+  let tickTimer = null, lastStatSec = 0, lastInfSec = 0;
+  function startTick() {
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(() => {
+      if (!currentUser) return;
+      checkAlarmas();
+      
+      // Comprobar si el operario debe avanzar al siguiente montaje
+      let k = state.activeRole;
+      let op = getActiveOpOp();
+      if (op && !activeDash.startsWith('admin-')) {
+        let modo = op.modos && op.modos[k] === 'manual' ? 'manual' : 'auto';
+        if (modo === 'auto') {
+          let ms = montajesActiveOp(k);
+          let enCurso = ms.find(m => m.estado === 'curso');
+          if (enCurso) {
+            let real = segundosDeMontaje(enCurso);
+            let est = (enCurso.horasEstimadas || 0) * 3600;
+            if (est > 0 && real >= est) {
+              let next = ms.find(m => m.estado === 'pendiente' || m.estado === 'pausado');
+              if (next) {
+                let finMs = enCurso.inicioReal ? enCurso.inicioReal + Math.max(0, est - (enCurso.tiempoAcumulado || 0)) * 1000 : Date.now();
+                let tAcum = est;
+                actualizarMontaje(enCurso.id, { estado: 'hecho', tiempoAcumulado: tAcum, inicioReal: null });
+                actualizarMontaje(next.id, { estado: 'curso', inicioReal: finMs, primerInicio: next.primerInicio || finMs, por: enCurso.por, porId: enCurso.porId });
+                showToast(`⏱ ${enCurso.nombre} completado. Iniciando: ${next.nombre}`, 'ok');
+              }
+            }
+          }
+        }
+      }
+      
+      if (activeDash.startsWith('admin-')) {
+        let nowA = Math.floor(Date.now() / 1000);
+        if (nowA !== lastInfSec) {
+          lastInfSec = nowA;
+          if (nowA % 5 === 0) renderInformeBody();
+        }
+        return;
+      }
+      
+      let ms = montajesActiveOp(state.activeRole);
+      ms.forEach(m => {
+        if (m.estado === 'curso') {
+          const c = document.querySelector(`[data-live="${m.id}"]`);
+          if (c) c.textContent = fmtCrono(segundosDeMontaje(m));
+          const li = document.querySelector(`[data-mid="${m.id}"]`);
+          if (li) li.classList.toggle('over', (m.horasEstimadas>0 && segundosDeMontaje(m) > m.horasEstimadas*3600+1));
+        }
+      });
+      let totalReal = ms.reduce((s,m) => s + segundosDeMontaje(m), 0);
+      const liveReal = document.querySelector(`[data-live-real="${state.activeRole}"]`);
+      if (liveReal) liveReal.textContent = fmtCrono(totalReal);
+
+      let nowS = Math.floor(Date.now() / 1000);
+      if (nowS !== lastStatSec) {
+        lastStatSec = nowS;
+        // actualizar tabla y resumen visualmente
+        let op = getActiveOpOp();
+        if (op && ms.length && $('op-quedan-tiempo')) {
+           let est = ms.reduce((s,m)=>s+(Number(m.horasEstimadas)||0),0);
+           let real = ms.reduce((s,m)=>s+segundosDeMontaje(m),0);
+           const tr = $('op-trabajo-real'); if (tr) tr.textContent = fmtHReal(real);
+           const trs = $('op-trabajo-real-sub'); if (trs) trs.textContent = `de ${fmtH(est)} est.`;
+           actualizarTabla(ms);
+        }
+      }
+    }, 250);
+  }
+
+  // ===== INFORME Y PDF (MANTENIDOS DEL CÓDIGO ANTERIOR) =====
+  function populateInformeSelects() {
+    const optsOp = '<option value="">Todas las operaciones</option>' + state.operaciones.map(o => `<option value="${esc(o.id)}">${getModelName(o.modeloId)} · ${esc(o.nombre)}</option>`).join('');
+    const nombres = new Set();
+    state.accesos.forEach(u => { if (u.nombre) nombres.add(u.nombre); });
+    const listaUsu = Array.from(nombres).sort((a, b) => a.localeCompare(b));
+    const optsUsu = '<option value="">Todos los usuarios</option>' + listaUsu.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    if (!state.operaciones.some(o => o.id === infFiltroOp)) infFiltroOp = '';
+    if (infFiltroUsuario && !nombres.has(infFiltroUsuario)) infFiltroUsuario = '';
+    const key = optsOp + '||' + optsUsu;
+    if (key !== lastInfSelHtml) {
+      lastInfSelHtml = key;
+      const eo = $('inf-op'); if (eo) eo.innerHTML = optsOp;
+      const eu = $('inf-usuario'); if (eu) eu.innerHTML = optsUsu;
+    }
+    const eo = $('inf-op'); if (eo) eo.value = infFiltroOp;
+    const eu = $('inf-usuario'); if (eu) eu.value = infFiltroUsuario;
+  }
+
+  let infFiltroOp = '', infFiltroUsuario = '', lastInfHtml = '', lastInfSelHtml = '';
+  const ESTADO_TXT = { pendiente: 'Pendiente', curso: 'En curso', pausado: 'Pausado', hecho: 'Hecho' };
+  function fmtDifS(s) {
+    if (s === null || s === undefined) return '—';
+    const r = Math.round(s);
+    return (r > 0 ? '+' : (r < 0 ? '-' : '')) + fmtCrono(Math.abs(r));
+  }
+  function fmtInicio(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function infFila(m) {
+    const est = Math.round((Number(m.horasEstimadas) || 0) * 3600);
+    const real = segundosDeMontaje(m);
+    const hecho = m.estado === 'hecho';
+    return {
+      nombre: m.nombre || 'Montaje', key: m.estado, estado: ESTADO_TXT[m.estado] || String(m.estado),
+      por: m.por || '—', ini: fmtInicio(m.primerInicio),
+      est, real, dif: (hecho && est > 0) ? est - real : null
+    };
+  }
+  function informeDatos(fOp, fUsuario) {
+    const ops = state.operaciones.filter(o => !fOp || o.id === fOp);
+    const out = [];
+    // NOTA: En la v2, para hacer el informe general, consultamos todos los montajes (o los de la op seleccionada)
+    // Para no colapsar, el admin descarga solo la op activa o todas. Aquí asumimos que usamos los montajesAdmin si está activa.
+    // Si el admin filtra por una op distinta a la activa, hacemos una consulta rápida.
+    ops.forEach(op => {
+      let ms = state.montajesAdmin || [];
+      if (op.id !== state.operacionActivaAdmin) return; // Simplificación: el informe en vivo solo para la op activa
+      
+      const porUsuario = new Map();
+      state.puestos.forEach(p => {
+        ms.filter(m => m.puestoId === p.id).forEach(m => {
+          const fila = infFila(m);
+          const u = (m.por || 'Sin asignar').trim() || 'Sin asignar';
+          if (fUsuario && u !== fUsuario) return;
+          if (!porUsuario.has(u)) porUsuario.set(u, []);
+          porUsuario.get(u).push(fila);
+        });
+      });
+      const grupos = [];
+      porUsuario.forEach((filas, usuario) => {
+        grupos.push({
+          usuario, filas,
+          hechos: filas.filter(f => f.key === 'hecho').length,
+          estS: filas.reduce((s, f) => s + f.est, 0),
+          realS: filas.reduce((s, f) => s + f.real, 0),
+          difS: filas.reduce((s, f) => s + (f.dif === null ? 0 : f.dif), 0)
+        });
+      });
+      grupos.sort((a, b) => {
+        if (a.usuario === 'Sin asignar') return 1;
+        if (b.usuario === 'Sin asignar') return -1;
+        return a.usuario.localeCompare(b.usuario);
+      });
+      if (grupos.length) out.push({ op, grupos });
+    });
+    return out;
+  }
+  function renderInformeBody() {
+    const el = $('informe-body');
+    if (!el || !state) return;
+    const datos = informeDatos(infFiltroOp, infFiltroUsuario);
+    let html = '';
+    if (!datos.length) html = '<p class="hint">No hay montajes en la selección.</p>';
+    datos.forEach(d => {
+      html += `<div class="inf-op"><span class="modelo-badge">${getModelName(d.op.modeloId)}</span>${esc(d.op.nombre)}</div>`;
+      d.grupos.forEach(g => {
+        const rows = g.filas.map(f => {
+          const pend = f.key === 'pendiente' && f.real === 0;
+          const dCls = f.dif === null ? '' : (f.dif > 0.5 ? 'diff-pos' : (f.dif < -0.5 ? 'diff-neg' : ''));
+          return `<tr class="f-${f.key}"><td>${esc(f.nombre)}</td><td class="l">${f.estado}</td><td class="l">${esc(f.por)}</td><td class="l">${f.ini}</td><td>${f.est > 0 ? fmtCrono(f.est) : '—'}</td><td>${pend ? '—' : fmtCrono(f.real)}</td><td class="${dCls}">${fmtDifS(f.dif)}</td></tr>`;
+        }).join('');
+        const tCls = g.hechos ? (g.difS > 0.5 ? 'diff-pos' : (g.difS < -0.5 ? 'diff-neg' : '')) : '';
+        html += `<div class="inf-puesto"><b>👤 ${esc(g.usuario)}</b><span>Hechos ${g.hechos}/${g.filas.length}</span></div>` +
+          `<div class="tabla-container"><table class="tabla-tiempos"><thead><tr><th class="l">Montaje</th><th class="l">Estado</th><th class="l">Por</th><th class="l">Inicio</th><th>Estim.</th><th>Real</th><th>Dif.</th></tr></thead>` +
+          `<tbody>${rows}</tbody><tfoot><tr><td>Totales</td><td></td><td></td><td></td><td>${fmtCrono(g.estS)}</td><td>${fmtCrono(g.realS)}</td><td class="${tCls}">${fmtDifS(g.hechos ? g.difS : null)}</td></tr></tfoot></table></div>`;
+      });
+    });
+    if (html === lastInfHtml) return;
+    lastInfHtml = html;
+    el.innerHTML = html;
+  }
+
+  const HELV_W = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+  function pdfW(str, size, bold) {
+    let w = 0;
+    for (const ch of String(str)) { const c = ch.charCodeAt(0); w += (c >= 32 && c <= 126) ? HELV_W[c - 32] : 556; }
+    return w * size / 1000 * (bold ? 1.06 : 1);
+  }
+  function pdfFit(str, maxW, size, bold) {
+    str = String(str);
+    if (pdfW(str, size, bold) <= maxW) return str;
+    while (str.length > 1 && pdfW(str + '...', size, bold) > maxW) str = str.slice(0, -1);
+    return str + '...';
+  }
+  function pdfEnc(str) {
+    let o = '';
+    for (const ch of String(str)) {
+      let c = ch.charCodeAt(0);
+      if (ch === '—') c = 0x97; else if (ch === '–') c = 0x96; else if (ch === '…') c = 0x85;
+      else if (ch === '−') c = 0x2D;
+      else if (c > 255 || (c >= 0x80 && c < 0xA0) || c < 32) c = 63;
+      const t = String.fromCharCode(c);
+      o += (t === '(' || t === ')' || t === '\\') ? '\\' + t : t;
+    }
+    return o;
+  }
+  function pdfAssemble(pages, W, H) {
+    const n = pages.length, objs = [];
+    objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    const kids = [];
+    for (let i = 0; i < n; i++) kids.push((5 + 2 * i) + ' 0 R');
+    objs[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${n} >>`;
+    objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+    for (let i = 0; i < n; i++) {
+      const content = pages[i].join('\n');
+      objs[5 + 2 * i] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + 2 * i} 0 R >>`;
+      objs[6 + 2 * i] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+    }
+    let out = '%PDF-1.4\n';
+    const offs = [];
+    for (let i = 1; i < objs.length; i++) { offs[i] = out.length; out += `${i} 0 obj\n${objs[i]}\nendobj\n`; }
+    const xref = out.length;
+    out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+    for (let i = 1; i < objs.length; i++) out += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+    out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    const bytes = new Uint8Array(out.length);
+    for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+    return bytes;
+  }
+  function generarInformePdf() {
+    const datos = informeDatos(infFiltroOp, infFiltroUsuario);
+    const W = 842, H = 595, M = 36, CW = W - 2 * M;
+    const cols = [
+      { k: 'nombre', t: 'MONTAJE', w: 290, a: 'l' }, { k: 'estado', t: 'ESTADO', w: 70, a: 'l' },
+      { k: 'por', t: 'POR', w: 110, a: 'l' }, { k: 'ini', t: 'INICIO', w: 75, a: 'l' },
+      { k: 'est', t: 'ESTIM.', w: 75, a: 'r' }, { k: 'real', t: 'REAL', w: 75, a: 'r' }, { k: 'dif', t: 'DIF.', w: 75, a: 'r' }
+    ];
+    const OK = '0.04 0.48 0.26', BAD = '0.78 0.16 0.16', GRAY = '0.38 0.42 0.5';
+    const pages = []; let cur = null, y = 0;
+    const T = (x, yTop, str, size, bold, rgb, right) => {
+      const w = pdfW(str, size, bold);
+      cur.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${rgb || '0 0 0'} rg ${(right ? x - w : x).toFixed(2)} ${(H - yTop).toFixed(2)} Td (${pdfEnc(str)}) Tj ET`);
+    };
+    const R = (x, yTop, w, h, rgb) => cur.push(`${rgb} rg ${x.toFixed(2)} ${(H - yTop - h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);
+    const L = (x1, y1, x2, y2, rgb) => cur.push(`0.5 w ${rgb} RG ${x1.toFixed(2)} ${(H - y1).toFixed(2)} m ${x2.toFixed(2)} ${(H - y2).toFixed(2)} l S`);
+
+    const nomOp = infFiltroOp ? ((state.operaciones.find(o => o.id === infFiltroOp) || {}).nombre || '') : 'Todas';
+    const nomUsu = infFiltroUsuario || 'Todos';
+    const now = new Date();
+    const fecha = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    function newPage() {
+      cur = []; pages.push(cur); y = M;
+      if (pages.length === 1) {
+        T(M, y + 14, 'Informe de tiempos', 16, true); y += 22;
+        T(M, y + 9, `Generado: ${fecha}  ·  Operación: ${pdfFit(nomOp, 260, 9, false)}  ·  Usuario: ${pdfFit(nomUsu, 160, 9, false)}`, 9, false, GRAY); y += 14;
+        T(M, y + 8, 'Dif. = estimado - real de los montajes terminados (+ ahorro / - exceso).', 8, false, GRAY); y += 20;
+      } else { T(M, y + 10, 'Informe de tiempos', 10, true); y += 20; }
+    }
+    const ensure = (h) => { if (y + h > H - 40) newPage(); };
+    function drawHead() {
+      R(M, y, CW, 16, '0.93 0.94 0.96');
+      let x = M;
+      cols.forEach(c => { if (c.a === 'l') T(x + 4, y + 11, c.t, 7.5, true, GRAY); else T(x + c.w - 4, y + 11, c.t, 7.5, true, GRAY, true); x += c.w; });
+      y += 16;
+    }
+    function cells(f, bold) {
+      let x = M;
+      cols.forEach(c => {
+        let v = f[c.k], rgb = '0 0 0';
+        if (c.k === 'dif') { v = fmtDifS(f.dif); if (f.dif > 0.5) rgb = OK; else if (f.dif < -0.5) rgb = BAD; }
+        else if (c.k === 'est') v = f.est > 0 ? fmtCrono(f.est) : '—';
+        else if (c.k === 'real') v = (f.key === 'pendiente' && f.real === 0) ? '—' : fmtCrono(f.real);
+        v = pdfFit(v, c.w - 8, 9, bold);
+        if (c.a === 'l') T(x + 4, y + 11, v, 9, bold, rgb); else T(x + c.w - 4, y + 11, v, 9, bold, rgb, true);
+        x += c.w;
+      });
+    }
+
+    newPage();
+    if (!datos.length) T(M, y + 12, 'No hay montajes en la selección.', 10, false);
+    datos.forEach(d => {
+      ensure(26 + 16 + 16 + 16 + 16);
+      R(M, y, CW, 20, '0.12 0.2 0.3');
+      T(M + 8, y + 14, pdfFit(`${getModelName(d.op.modeloId)}  ·  ${d.op.nombre}`, CW - 16, 11, true), 11, true, '1 1 1');
+      y += 26;
+      d.grupos.forEach(g => {
+        ensure(16 + 16 + 16 + 16);
+        T(M, y + 11, `Usuario: ${g.usuario}`, 10, true);
+        T(M + CW, y + 11, `Hechos ${g.hechos}/${g.filas.length}   ·   Estimado ${fmtCrono(g.estS)}   ·   Real ${fmtCrono(g.realS)}   ·   Dif. ${fmtDifS(g.hechos ? g.difS : null)}`, 8.5, false, GRAY, true);
+        y += 18;
+        drawHead();
+        g.filas.forEach(f => {
+          if (y + 16 > H - 40) { newPage(); T(M, y + 11, `${d.op.nombre} · ${g.usuario} (cont.)`, 9, true); y += 16; drawHead(); }
+          if (f.key === 'hecho') R(M, y, CW, 16, '0.89 0.97 0.93');
+          else if (f.key === 'curso') R(M, y, CW, 16, '0.996 0.95 0.78');
+          cells(f, false);
+          L(M, y + 16, M + CW, y + 16, '0.85 0.87 0.9');
+          y += 16;
+        });
+        ensure(16);
+        L(M, y, M + CW, y, '0.4 0.45 0.5');
+        cells({ nombre: 'Totales', estado: '', por: '', ini: '', est: g.estS, real: g.realS, dif: g.hechos ? g.difS : null, key: 'total' }, true);
+        y += 28;
+      });
+      y += 4;
+    });
+    const total = pages.length;
+    pages.forEach((p, i) => {
+      cur = p;
+      T(M, H - 20, 'Control de tiempos', 8, false, GRAY);
+      T(W - M, H - 20, `Pág. ${i + 1}/${total}`, 8, false, GRAY, true);
+    });
+    return pdfAssemble(pages, W, H);
+  }
+
+  $('modo-selector').addEventListener('click', async e => {
+    const btn = e.target.closest('button[data-modo]');
+    if (!btn) return;
+    let op = getActiveOpOp();
+    if (!op.modos) op.modos = {};
+    const nuevo = btn.getAttribute('data-modo');
+    op.modos[state.activeRole] = nuevo;
+    await setDoc(doc(db, "operaciones", op.id), op);
+    render();
+    showToast(nuevo === 'manual' ? '✋ Modo manual activado' : '⚡ Modo automático activado', 'ok');
+  });
+
+</script>
+</body>
+</html>
